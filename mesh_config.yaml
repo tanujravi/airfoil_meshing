@@ -1,0 +1,61 @@
+
+airfoil:
+  contour_file: "ONERA-OAT15A_coordiantes.dat"   # path to your .dat file
+  spline_degree: 2                                # Airfoil.from_contour_file(..., k=2)
+
+airfoil_boundary:                                  # Airfoil.distribute_points(...)
+  n_points: 500
+  n_points_te: 10
+  weight_upper: 1.0
+  weight_curvature: 4.0
+  weight_te: 4.0
+  fraction_te: 0.2
+  max_size_ratio: 1.15
+  n_points_high_res: 5000
+  max_relax_iter: 100
+
+airfoil_extrusion:                                 # BlockMesh.extrudeLine_cell_thickness on airfoil
+  method: "cell_thickness"
+  cell_thickness: 0.0001
+  growth: 1.05
+  extrusion_distance: 0.05
+
+te_line_distribution:                              # LineDistribution.symmetric_grow_decay_line
+  first_cell_thickness: 0.0001                     # h0
+  growth: 1.05                                     # r
+  even: false
+
+te_extrusion:                                      # BlockMesh.extrudeLine_cell_thickness on TE
+  cell_thickness: "auto"          # min(norm(p1-p0), norm(p2-p3))
+  growth: 1.005
+  extrusion_distance: 0.05
+
+v_block:
+  centerline_growth:                               # LineDistribution.grow_to_min_length_line
+    initial_cell_thickness: "auto"   # norm of first two u-lines in TE block
+    growth: 1.02
+    min_length: 100.0                              # L
+  slope: 4
+
+right_farfield:
+  c_radius: 50.0
+  n_segments: 100
+  left_boundary:                                   # LineDistribution.gp_to_ap_by_step_threshold_line
+    initial_cell_thickness: "auto"
+    r: 1.08
+    step_limit: 0.08
+  right_boundary:                                  # LineDistribution.gp_to_ap_by_step_threshold_line
+    initial_cell_thickness: "auto"
+    r: 1.3
+    step_limit: 0.4
+
+c_block:
+  smoothing:                                       # Elliptic.smooth
+    enabled: true
+    iterations: 30
+    tolerance: 1.0e-3
+    boundary_type: null                            # None or "Neumann"
+    verbose: true
+
+output:
+  obj_filename: "mesh.obj"

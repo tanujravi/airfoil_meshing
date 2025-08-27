@@ -6,8 +6,8 @@ import logging
 import numpy as np
 from pandas import read_csv
 from scipy.interpolate import BSpline, make_interp_spline
-
-
+import scipy
+import Elliptic
 logging.basicConfig(
     format="{asctime} - {levelname} - {message}",
     style="{",
@@ -102,7 +102,8 @@ class Airfoil(object):
         ddy = self._sp_y.derivative(2)(u)
         curv = np.abs(dx*ddy - dy*ddx) / (dx**2 + dy**2)**1.5
         return curv / curv.max()
-    
+
+
     def distribute_points(
             self,
             n_points: int,
@@ -188,9 +189,14 @@ class Airfoil(object):
                     logging.info(f"relaxation did not converge within {max_relax_iter} iterations")
 
         u_interp = np.interp(s_new, s, u)
+        dx = self._sp_x.derivative(1)(u_interp)
+        dy = self._sp_y.derivative(1)(u_interp)        
+        normals = np.vstack([-dy, dx]).T
+        norms = np.linalg.norm(normals, axis=1, keepdims=True)
+        normals_unit = normals / norms
         x_te = np.linspace(x[0], x[-1], n_points_te)
         y_te = np.linspace(y[0], y[-1], n_points_te)
-        return self._sp_x(u_interp), self._sp_y(u_interp), x_te, y_te
+        return self._sp_x(u_interp), self._sp_y(u_interp), x_te, y_te, normals_unit
     
     @property
     def x(self) -> np.ndarray:
@@ -211,15 +217,3 @@ class Airfoil(object):
         return self._y
 
 
-
-if __name__ == "__main__":
-
-    import matplotlib.pyplot as plt
-
-    aero = Airfoil.from_contour_file("ONERA-OAT15A_coordiantes.dat")
-    plt.plot(aero.x, aero.y)
-    xp, yp, xp_te, yp_te = aero.distribute_points(300)
-    plt.scatter(xp, yp, s=5)
-    plt.scatter(xp_te[1:-1], yp_te[1:-1], s=5)
-    plt.gca().set_aspect("equal")
-    plt.show()
