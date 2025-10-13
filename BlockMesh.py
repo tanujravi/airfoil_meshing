@@ -26,6 +26,64 @@ class BlockMesh:
             line = list(zip(xo.tolist(), yo.tolist()))
             self.addLine(line)
 
+    def getNodeCoo(self, node):
+        I, J = node[0], node[1]
+        uline = self.getULines()[J]
+        point = uline[I]
+        return np.array(point)
+
+    def setNodeCoo(self, node, new_pos):
+        I, J = node[0], node[1]
+        uline = self.getULines()[J]
+        uline[I] = new_pos
+        return
+
+    def makeSubBlock(self, ij=[]):
+        """
+        Create and return a new BlockMesh that corresponds to the sub-block
+        defined by indices ij = [istart, iend, jstart, jend].
+
+        The new block's boundaries are taken from this mesh:
+            - lower: U-line at jstart, columns istart..iend
+            - upper: U-line at jend,   columns istart..iend
+            - left:  V-line at istart, rows    jstart..jend
+            - right: V-line at iend,   rows    jstart..jend
+
+        The interior is generated with transfinite interpolation using those
+        four boundaries, so the sub-block has exactly
+            (iend - istart + 1) points along u and
+            (jend - jstart + 1) points along v.
+        """
+
+        istart, iend, jstart, jend = ij
+
+
+        U, V = self.getDivUV()
+        lower_u = self.getLine(number=jstart, direction='u')  # U-line at jstart
+        upper_u = self.getLine(number=jend,   direction='u')  # U-line at jend
+        left_v  = self.getLine(number=istart, direction='v')  # V-line at istart
+        right_v = self.getLine(number=iend,   direction='v')  # V-line at iend
+
+        # Slice to the requested subrange
+        lower = lower_u[istart:iend + 1]
+        upper = upper_u[istart:iend + 1]
+        left  = left_v[jstart:jend + 1]
+        right = right_v[jstart:jend + 1]
+
+        # Build boundary curves from the parent mesh
+        """
+        lower = self.getULines()[jstart][istart:iend + 1]
+        upper = self.getULines()[jend][istart:iend + 1]
+        left  = [self.getULines()[j][istart] for j in range(jstart, jend + 1)]
+        right = [self.getULines()[j][iend]   for j in range(jstart, jend + 1)]
+        """
+        # Create a fresh block and populate via transfinite on these boundaries
+        sub = BlockMesh()
+        sub.transfinite(boundary=[lower, upper, left, right])
+
+        return sub
+
+    
     def extrudeLine_spacing(self, line, lengths, direction):
         """
         Extrude a line in a fixed custom normal direction using specified spacing.

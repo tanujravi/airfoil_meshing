@@ -1,6 +1,5 @@
 from scipy import spatial
 import numpy as np
-
 class Connect:
     def __init__(self):
         pass
@@ -154,16 +153,3 @@ class Connect:
 
         return (vertices_clean, connectivity_clean)
 
-    def write_obj(self, vertices, connectivity, filename):
-        with open(filename, 'w') as f:
-            # Write vertices
-            for v in vertices:
-                if len(v) == 2:
-                    f.write(f"v {v[0]} {v[1]} 0.0\n")  # Add z=0 for 2D vertices
-                else:
-                    f.write(f"v {v[0]} {v[1]} {v[2]}\n")
-
-            # Write faces (convert 0-based to 1-based indices)
-            for face in connectivity:
-                indices_str = ' '.join(str(i + 1) for i in face)
-                f.write(f"f {indices_str}\n")

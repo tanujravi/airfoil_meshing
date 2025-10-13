@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from LineDistribution import LineDistribution
 import Elliptic
 import sys
+from Smooth_angle_based import SmoothAngleBased
+from Smooth import Smooth
 class Assemble:
 
     def __init__(self, config):
@@ -169,8 +171,14 @@ class Assemble:
         rf = self.config.get("right_farfield", {})
         c_radius = rf.get("c_radius", 50.0)
         te_upper_line = te_upper_mesh.getLine(number=-1, direction="u")
+        
+        p0 =  te_upper_mesh.getLine(number=0, direction="v")[0]
+        p1 =  te_upper_mesh.getLine(number=0, direction="v")[-1]
+        x_end = p0[0] + (p1[0]-p0[0])*(c_radius-p0[1])/(p1[1]-p0[1])
+        #LineDistribution.plot_lines([te_upper_line])
         start = te_upper_line[0]
-        end = (start[0], c_radius)
+        #end = (start[0], c_radius)
+        end = (x_end, c_radius)
         n_segments = rf.get("n_segments", 70)
         left_bound_cfg = rf.get("left_boundary")
         step_limit_left = left_bound_cfg.get("step_limit", 0.1)
@@ -216,7 +224,11 @@ class Assemble:
 
         te_lower_line = te_lower_mesh.getLine(number=-1, direction="u")
         start = te_lower_line[0]
-        end = (start[0], -1*c_radius)
+        #end = (start[0], -1*c_radius)
+        p0 =  te_lower_mesh.getLine(number=0, direction="v")[0]
+        p1 =  te_lower_mesh.getLine(number=0, direction="v")[-1]
+        x_end = p0[0] + (p1[0]-p0[0])*(-c_radius-p0[1])/(p1[1]-p0[1])
+        end = (x_end, -1*c_radius)
 
         if left_bound_cfg.get("initial_cell_thickness") == "auto":
             right_farfield_lower_normal = np.array(te_lower_mesh.getLine(number=-1, direction="u")[0]) - np.array(te_lower_mesh.getLine(number=-2, direction="u")[0])
@@ -255,24 +267,72 @@ class Assemble:
         c_block = BlockMesh()
         p1 = right_farfield_upper.getLine(number = 0, direction = "v")[-1]
         p2 = right_farfield_lower.getLine(number = 0, direction = "v")[0]
+        #sys.exit()
         boundaries_left = mesh.getLine(number=-1, direction="u")
 
+        """
+        boundaries_right = LineDistribution.semicircle_intersections_along_normals_cosine(
+        p2, p1,
+        ref_polyline=boundaries_left, normals= surf_normals,
+          # or "cw"
+        )
+        """
+
+        boundaries_right = LineDistribution.map_airfoil_to_semicircle_blended(
+            p2, p1,
+            ref_polyline=boundaries_left,
+            normals=surf_normals,
+            alphaMin=0.4,
+            alphaMax=0.7,
+            direction="cw"
+            )
+        
+        """
         boundaries_right = LineDistribution.semicircle_arc_with_ref_spacing(
         p2, p1,
         ref_polyline=boundaries_left,
         direction="cw"   # or "cw"
         )
+        """
         boundaries_upper = right_farfield_upper.getLine(number=0, direction="v")
         boundaries_lower = right_farfield_lower.getLine(number=0, direction="v")
         boundaries_lower.reverse()
         boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
+        #LineDistribution.plot_lines(boundary)
+        #sys.exit()
         c_block.transfinite(boundary=boundary)
-
         
-        smoother = Elliptic.Elliptic(c_block.getULines())
+        #new_c_block = c_block.makeSubBlock(ij = [0, len(boundaries_upper)-40, 120, len(boundaries_right)-121  ])
+        
+        """
+        smoother = SmoothAngleBased(c_block, data_source='block')
+        smoothed_vertices = smoother.smooth(iterations=30,
+                                            tolerance=1e-4,
+                                            verbose=True)
+        new_ulines = smoother.mapToUlines(smoothed_vertices)
+        c_block.setUlines(new_ulines)
+        """
+        """
+        smoother = SmoothAngleBased(new_c_block, data_source='block')
+        smoothed_vertices = smoother.smooth(iterations=20,
+                                            tolerance=1e-4,
+                                            verbose=True)
+        new_ulines = smoother.mapToUlines(smoothed_vertices)
+        new_c_block.setUlines(new_ulines)
+        """
+        """
+        smoother = Elliptic.Elliptic(new_c_block.getULines())
         new_ulines = smoother.smooth(iterations=30,
                                                 tolerance=1e-3,
-                                                bnd_type="Neumann", # can be 'Neumann'
+                                                bnd_type="Dirichlet", # can be 'Neumann'
                                                 verbose=True)
-        c_block.setUlines(new_ulines)
+        new_c_block.setUlines(new_ulines)
+        """
+        """
+        smooth = Smooth(c_block)
+        nodes = smooth.selectNodes(domain='interior')
+        c_block = smooth.smooth(nodes, iterations=3,
+                                         algorithm='laplace')
+        """
         self.blocks.append(c_block)
+        #self.blocks.append(new_c_block)
