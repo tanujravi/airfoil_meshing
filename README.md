@@ -34,8 +34,13 @@ The OAT15A airfoil contour data can be downloaded [here](https://aiaa-dpw.larc.n
 
 ## How to run
 
-To test the contour loading and point distribution, run:
+To generate the mesh, run:
 ```
 source aero/bin/activate
-python airfoil.py
+python main.py mesh_config.yaml
+
 ```
+Mesh parameters can be adjusted in "mesh_config.yaml" file.
+
+In the present implementation, the code generates a 2D mesh in obj format and an extruded mesh in 3D with boundary conditions in gmsh format.
+The filenames are "mesh.obj" and "mesh.msh". 

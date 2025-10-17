@@ -24,4 +24,4 @@ if __name__ == "__main__":
     mesh = Mesh(vertices, connectivity)
     mesh.write_obj("mesh.obj")
     mesh.extrudeTo3d(thickness=0.1, zmax_name="front", zmin_name="back")
-    mesh.write_gmsh22_ascii(msh_name = "mesh_new.msh")
+    mesh.write_gmsh22_ascii(msh_name = "mesh.msh")
