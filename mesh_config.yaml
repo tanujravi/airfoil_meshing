@@ -7,7 +7,7 @@ airfoil_boundary:                                  # Airfoil.distribute_points(.
   n_points: 500
   n_points_te: 10
   weight_upper: 1.0
-  weight_curvature: 10.0
+  weight_curvature: 6.0
   weight_te: 4.0
   fraction_te: 0.2
   max_size_ratio: 1.15
@@ -28,7 +28,7 @@ te_line_distribution:                              # LineDistribution.symmetric_
 te_extrusion:                                      # BlockMesh.extrudeLine_cell_thickness on TE
   cell_thickness: "auto"          # min(norm(p1-p0), norm(p2-p3))
   growth: 1.005
-  extrusion_distance: 0.05
+  extrusion_distance: 0.4
 
 v_block:
   centerline_growth:                               # LineDistribution.grow_to_min_length_line

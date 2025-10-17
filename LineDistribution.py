@@ -804,3 +804,101 @@ class LineDistribution:
             Y[i] = X + t_forw * d_hat
 
         return [tuple(pt) for pt in Y]
+
+
+
+
+    @staticmethod
+    def find_alphas(
+        p1, p2, ref_polyline, normals,
+        direction="ccw", use_slerp=False,
+        alphaMin_max=0.7, alphaMax_max=0.9,
+        tol_xi=1e-6,
+        gamma = 0.01
+    ):
+        def _unwrap_arc_params(Y, O, start_angle, direction):
+            """
+            Compute arc parameter xi for points Y on the circle centered at O.
+            xi is measured from start_angle, increasing CCW if direction='ccw',
+            decreasing if 'cw' (we flip sign so we always check increasing).
+            """
+            theta = np.arctan2(Y[:,1] - O[1], Y[:,0] - O[0])   # [-pi, pi]
+            # shift by start_angle so the sequence should run roughly in [0, pi]
+            theta_rel = np.unwrap(theta - start_angle)
+            if direction == "cw":
+                theta_rel = -theta_rel
+            # normalize to [0, pi] length (monotonic check is scale-free, but this helps intuition)
+            # Note: map_airfoil_to_semicircle_blended already constrains to semicircle
+            return theta_rel
+
+        def _xi_monotone_ok(xi, tol=1e-6):
+            diffs = np.diff(xi)
+            return np.all(diffs >= tol), diffs
+
+        # Helper to evaluate monotonicity for given alphas
+        def evaluate(alpha_min, alpha_max):
+            Y = np.array(LineDistribution.map_airfoil_to_semicircle_blended(
+                p1, p2,
+                ref_polyline=ref_polyline,
+                normals=normals,
+                direction=direction,
+                alphaMin=alpha_min,
+                alphaMax=alpha_max,
+                use_slerp=use_slerp
+            ), float)
+            O = 0.5*(np.array(p1)+np.array(p2))
+            a_start = np.arctan2(p1[1]-O[1], p1[0]-O[0]) if direction=="ccw" else np.arctan2(p2[1]-O[1], p2[0]-O[0])
+            xi = _unwrap_arc_params(Y, O, a_start, direction)
+            ok, diffs = _xi_monotone_ok(xi, tol=tol_xi)
+            return ok, Y, xi, diffs
+
+ 
+        # alphaMin from high to low (inclusive), by gamma
+        a_min = alphaMin_max
+        selected = []
+        # Use while loops to avoid floating-point inclusivity issues
+        while a_min >= 0.0:
+
+            # alphaMax from current alphaMin up to alphaMax_max (inclusive), by gamma
+    
+            a_max = alphaMax_max
+
+            while a_max >= a_min + 1e-12:
+
+                ok, Y, *_ = evaluate(
+                    a_min, a_max
+                )
+
+                if ok:
+                    # FIRST FEASIBLE: return immediately, per your spec/order
+                    #print(f"using alphaMin = {a_min} and alphaMax = {a_max}")
+                    selected.append((a_min, a_max))
+                    break
+                    #return [tuple(pt) for pt in Y]
+
+                a_max -= gamma
+
+            a_min -= gamma
+
+        selected = np.asarray(selected)          # shape (N, 2)
+        scores = 0.2*selected[:,0] + 0.8*selected[:,1]
+        idx_best = int(np.argmax(scores))
+        print(f"using alphaMin = {selected[idx_best][0]} and alphaMax = {selected[idx_best][1]}")
+        ok, Y, *_ = evaluate(
+            selected[idx_best][0], selected[idx_best][1]
+        )
+        return [tuple(pt) for pt in Y]
+        
+
+        # If not returning first feasible, but we found some feasible, return the tracked best
+
+        # ---- fallback: pure arc (0,0) ----
+        ok0, Y0, *_ = evaluate(
+            0.0, 0.0
+        )
+        if ok0:
+            print(f"using pure proportional based distribution")
+            return [tuple(pt) for pt in Y0]
+
+        # If even (0,0) fails, inputs/order are likely inconsistent
+        raise RuntimeError("find_alphas_linear failed: no feasible pair; even (0,0) violates monotonicity.")

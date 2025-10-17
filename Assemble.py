@@ -106,8 +106,8 @@ class Assemble:
         boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
         te_upper_mesh.transfinite(boundary=boundary)
 
-        self.blocks.append(te_upper_mesh)
 
+        self.blocks.append(te_upper_mesh)
 
         te_lower_mesh = BlockMesh()
 
@@ -158,10 +158,9 @@ class Assemble:
         y_end2 = y0 + slope*(x_end2-x0)
         boundaries_lower = LineDistribution.divide_line_by_reference((x0,y0), (x_end2, y_end2), center_ref)
 
-        boundaries_right= LineDistribution.divide_line_by_reference((x_end2, y_end2), (x_end1, y_end1), boundaries_left)
+        boundaries_right = LineDistribution.divide_line_by_reference((x_end2, y_end2), (x_end1, y_end1), boundaries_left)
         boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
         V_block.transfinite(boundary=boundary)
-
         self.blocks.append(V_block)
 
 
@@ -210,7 +209,6 @@ class Assemble:
         boundaries_lower.extend(V_block.getLine(number=-1, direction="u")[1:])
         boundaries_upper = [(x, c_radius) for (x, _) in boundaries_lower]
         boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
-
         right_farfield_upper.transfinite(boundary=boundary)
 
         self.blocks.append(right_farfield_upper)
@@ -277,7 +275,18 @@ class Assemble:
           # or "cw"
         )
         """
-
+        boundaries_right = LineDistribution.find_alphas(
+            p2, p1,
+            ref_polyline=boundaries_left,
+            normals=surf_normals,
+            alphaMin_max=0.7,
+            alphaMax_max=0.9,
+            gamma=0.01,
+            tol_xi=1e-5,
+            direction="cw",
+            )
+        
+        """
         boundaries_right = LineDistribution.map_airfoil_to_semicircle_blended(
             p2, p1,
             ref_polyline=boundaries_left,
@@ -286,20 +295,11 @@ class Assemble:
             alphaMax=0.7,
             direction="cw"
             )
-        
-        """
-        boundaries_right = LineDistribution.semicircle_arc_with_ref_spacing(
-        p2, p1,
-        ref_polyline=boundaries_left,
-        direction="cw"   # or "cw"
-        )
         """
         boundaries_upper = right_farfield_upper.getLine(number=0, direction="v")
         boundaries_lower = right_farfield_lower.getLine(number=0, direction="v")
         boundaries_lower.reverse()
         boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
-        #LineDistribution.plot_lines(boundary)
-        #sys.exit()
         c_block.transfinite(boundary=boundary)
         
         #new_c_block = c_block.makeSubBlock(ij = [0, len(boundaries_upper)-40, 120, len(boundaries_right)-121  ])
