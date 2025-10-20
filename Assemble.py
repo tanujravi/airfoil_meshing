@@ -89,6 +89,7 @@ class Assemble:
             "growth": te_ext.get("growth", 1.005),
             "extrusion_distance": te_ext.get("extrusion_distance", 0.05),
         }
+        line.reverse()
         te_mesh.extrudeLine_cell_thickness(line, surf_normals_te, **te_ex_kwargs)
         self.blocks.append(te_mesh)
         #sys.exit()
@@ -96,7 +97,7 @@ class Assemble:
         #sys.exit()
 
         te_upper_mesh = BlockMesh()
-        boundaries_lower = te_mesh.getLine(number=-1, direction='v')
+        boundaries_lower = te_mesh.getLine(number=0, direction='v')
         boundaries_left = mesh.getLine(number=-1, direction='v')
         top_left = boundaries_left[-1]
         bottom_right = boundaries_lower[-1]
@@ -111,29 +112,34 @@ class Assemble:
 
         te_lower_mesh = BlockMesh()
 
-        boundaries_upper = te_mesh.getLine(number=0, direction='v')
+        boundaries_upper = te_mesh.getLine(number=-1, direction='v')
         boundaries_left = mesh.getLine(number=0, direction='v')
         bottom_left = boundaries_left[-1]
         top_right = boundaries_upper[-1]
         bottom_right = (top_right[0], bottom_left[1])
         boundaries_right = LineDistribution.divide_line_by_reference(top_right, bottom_right, boundaries_left)
-        boundaries_lower = LineDistribution.divide_line_by_reference(bottom_left, bottom_right, boundaries_lower)
-        boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
-        te_lower_mesh.transfinite(boundary=boundary)
+        boundaries_lower = LineDistribution.divide_line_by_reference(bottom_left, bottom_right, boundaries_upper)
 
+        boundaries_left.reverse()
+        boundaries_right.reverse()       
+        boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
+        #boundary = [boundaries_upper, boundaries_lower, boundaries_right, boundaries_left]
+        #boundary = [boundaries_left, boundaries_right, boundaries_lower, boundaries_upper]
+        #LineDistribution.plot_lines(boundary)
+        te_lower_mesh.transfinite(boundary=boundary)
 
         self.blocks.append(te_lower_mesh)
 
-
+        
 
         V_block = BlockMesh()
         
         v_cfg = self.config.get("v_block", {})
         cg = v_cfg.get("centerline_growth", {})
-        boundaries_left = list(reversed(te_lower_mesh.getLine(number=-1, direction="v")))
-        boundaries_left.extend(te_mesh.getLine(number=-1, direction="u")[1:])
-        boundaries_left.extend(te_upper_mesh.getLine(number=-1, direction="v")[1:])
+        boundaries_left = te_lower_mesh.getLine(number=-1, direction="v")
+        boundaries_left.extend(list(reversed(te_mesh.getLine(number=-1, direction="u")))[1:])
 
+        boundaries_left.extend(te_upper_mesh.getLine(number=-1, direction="v")[1:])
         start_point = (xp_te[0], 0.5*(max(yp_te) + min(yp_te)))
         p0 = np.array(te_mesh.getLine(number=-1, direction="u")[0])
         p1 = np.array(te_mesh.getLine(number=-2, direction="u")[0])
@@ -160,9 +166,10 @@ class Assemble:
 
         boundaries_right = LineDistribution.divide_line_by_reference((x_end2, y_end2), (x_end1, y_end1), boundaries_left)
         boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
-        V_block.transfinite(boundary=boundary)
-        self.blocks.append(V_block)
 
+        V_block.transfinite(boundary=boundary)
+
+        self.blocks.append(V_block)
 
         
         right_farfield_upper = BlockMesh()
@@ -170,9 +177,9 @@ class Assemble:
         rf = self.config.get("right_farfield", {})
         c_radius = rf.get("c_radius", 50.0)
         te_upper_line = te_upper_mesh.getLine(number=-1, direction="u")
-        
         p0 =  te_upper_mesh.getLine(number=0, direction="v")[0]
         p1 =  te_upper_mesh.getLine(number=0, direction="v")[-1]
+
         x_end = p0[0] + (p1[0]-p0[0])*(c_radius-p0[1])/(p1[1]-p0[1])
         #LineDistribution.plot_lines([te_upper_line])
         start = te_upper_line[0]
@@ -207,7 +214,8 @@ class Assemble:
         boundaries_right = LineDistribution.gp_to_ap_by_step_threshold_line(start, end, n_segments, V_upper_cell_thickness, growth_right, step_limit_right)
         boundaries_lower = te_upper_mesh.getLine(number=-1, direction="u")
         boundaries_lower.extend(V_block.getLine(number=-1, direction="u")[1:])
-        boundaries_upper = [(x, c_radius) for (x, _) in boundaries_lower]
+        #boundaries_upper = [(x, c_radius) for (x, _) in boundaries_lower]
+        boundaries_upper = LineDistribution.divide_line_by_reference(boundaries_left[-1], boundaries_right[-1], boundaries_lower)
         boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
         right_farfield_upper.transfinite(boundary=boundary)
 
@@ -216,29 +224,29 @@ class Assemble:
 
         #####################################################done
 
-
-        
         right_farfield_lower = BlockMesh()
 
-        te_lower_line = te_lower_mesh.getLine(number=-1, direction="u")
+        te_lower_line = te_lower_mesh.getLine(number=0, direction="u")
         start = te_lower_line[0]
         #end = (start[0], -1*c_radius)
-        p0 =  te_lower_mesh.getLine(number=0, direction="v")[0]
-        p1 =  te_lower_mesh.getLine(number=0, direction="v")[-1]
+        p0 =  te_lower_mesh.getLine(number=0, direction="v")[-1]
+        p1 =  te_lower_mesh.getLine(number=0, direction="v")[0]
+        
         x_end = p0[0] + (p1[0]-p0[0])*(-c_radius-p0[1])/(p1[1]-p0[1])
         end = (x_end, -1*c_radius)
 
         if left_bound_cfg.get("initial_cell_thickness") == "auto":
-            right_farfield_lower_normal = np.array(te_lower_mesh.getLine(number=-1, direction="u")[0]) - np.array(te_lower_mesh.getLine(number=-2, direction="u")[0])
+            right_farfield_lower_normal = np.array(te_lower_mesh.getLine(number=0, direction="u")[0]) - np.array(te_lower_mesh.getLine(number=1, direction="u")[0])
             right_farfield_lower_cell_thickness = np.linalg.norm(right_farfield_lower_normal)
         else:
             right_farfield_lower_cell_thickness = float(left_bound_cfg.get("initial_cell_thickness"))
 
 
-
+        
         boundaries_left = LineDistribution.gp_to_ap_by_step_threshold_line(start, end, n_segments, right_farfield_lower_cell_thickness, growth_left, step_limit_left) 
         boundaries_left.reverse()
 
+        
         V_lower_line = V_block.getLine(number=0, direction="u")
         start = V_lower_line[-1]
         end = (start[0], -1*c_radius)
@@ -252,9 +260,15 @@ class Assemble:
         
         boundaries_right = LineDistribution.gp_to_ap_by_step_threshold_line(start, end, n_segments, V_lower_cell_thickness, growth_right, step_limit_right)
         boundaries_right.reverse()
-        boundaries_upper = te_lower_mesh.getLine(number=-1, direction="u")
+        
+        boundaries_upper = te_lower_mesh.getLine(number=0, direction="u").copy()
         boundaries_upper.extend(V_block.getLine(number=0, direction="u")[1:])
-        boundaries_lower = [(x, -1*c_radius) for (x, _) in boundaries_upper]
+        
+        #boundaries_lower = [(x, -1*c_radius) for (x, _) in boundaries_upper]
+        boundaries_lower = LineDistribution.divide_line_by_reference(boundaries_left[0], boundaries_right[0], boundaries_upper)
+        
+        #boundaries_upper.reverse()
+        #boundaries_lower.reverse()
         boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
 
         right_farfield_lower.transfinite(boundary=boundary)
@@ -268,13 +282,6 @@ class Assemble:
         #sys.exit()
         boundaries_left = mesh.getLine(number=-1, direction="u")
 
-        """
-        boundaries_right = LineDistribution.semicircle_intersections_along_normals_cosine(
-        p2, p1,
-        ref_polyline=boundaries_left, normals= surf_normals,
-          # or "cw"
-        )
-        """
         boundaries_right = LineDistribution.find_alphas(
             p2, p1,
             ref_polyline=boundaries_left,
@@ -285,54 +292,14 @@ class Assemble:
             tol_xi=1e-5,
             direction="cw",
             )
-        
-        """
-        boundaries_right = LineDistribution.map_airfoil_to_semicircle_blended(
-            p2, p1,
-            ref_polyline=boundaries_left,
-            normals=surf_normals,
-            alphaMin=0.4,
-            alphaMax=0.7,
-            direction="cw"
-            )
-        """
+
+
         boundaries_upper = right_farfield_upper.getLine(number=0, direction="v")
         boundaries_lower = right_farfield_lower.getLine(number=0, direction="v")
         boundaries_lower.reverse()
-        boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
+
+        #boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
+        boundary = [boundaries_left, boundaries_right, boundaries_lower, boundaries_upper]
         c_block.transfinite(boundary=boundary)
         
-        #new_c_block = c_block.makeSubBlock(ij = [0, len(boundaries_upper)-40, 120, len(boundaries_right)-121  ])
-        
-        """
-        smoother = SmoothAngleBased(c_block, data_source='block')
-        smoothed_vertices = smoother.smooth(iterations=30,
-                                            tolerance=1e-4,
-                                            verbose=True)
-        new_ulines = smoother.mapToUlines(smoothed_vertices)
-        c_block.setUlines(new_ulines)
-        """
-        """
-        smoother = SmoothAngleBased(new_c_block, data_source='block')
-        smoothed_vertices = smoother.smooth(iterations=20,
-                                            tolerance=1e-4,
-                                            verbose=True)
-        new_ulines = smoother.mapToUlines(smoothed_vertices)
-        new_c_block.setUlines(new_ulines)
-        """
-        """
-        smoother = Elliptic.Elliptic(new_c_block.getULines())
-        new_ulines = smoother.smooth(iterations=30,
-                                                tolerance=1e-3,
-                                                bnd_type="Dirichlet", # can be 'Neumann'
-                                                verbose=True)
-        new_c_block.setUlines(new_ulines)
-        """
-        """
-        smooth = Smooth(c_block)
-        nodes = smooth.selectNodes(domain='interior')
-        c_block = smooth.smooth(nodes, iterations=3,
-                                         algorithm='laplace')
-        """
         self.blocks.append(c_block)
-        #self.blocks.append(new_c_block)
