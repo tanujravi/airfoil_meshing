@@ -3,3 +3,6 @@ aero
 *.obj
 data
 __py*
+*.msh
+*.vtk
+*.vtu

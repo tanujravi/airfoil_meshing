@@ -40,7 +40,7 @@ linearRadial:    linear extrusion in radial direction
 radial:          linear extrusion in radial direction with multiple radii
 */
 
-thickness        0.5; // used by plane extrusion
+//thickness        0.5; // used by plane extrusion
 
 nLayers          1;
 expansionRatio   1.0;
@@ -48,6 +48,14 @@ expansionRatio   1.0;
 // Merge front and back patches, typically for 360 deg wedge extrusion
 mergeFaces       false;
 mergeTol         0;
+/*
+extrudeModel         linearDirection;
+linearDirectionCoeffs
+{
+    direction       (0 0 1);   // pick your global Z (or Y) out of plane
+    thickness       0.2;     // total thickness across nLayers
+}
+*/
 
 linearNormalCoeffs
 {
