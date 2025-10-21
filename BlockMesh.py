@@ -10,6 +10,35 @@ class BlockMesh:
         self.ULines.append(line)    
     def setUlines(self, ulines):
         self.ULines = ulines
+
+    def extrudeLine_cell_thickness(self, line, normals,
+                                cell_thickness=0.04, growth=1.05,
+                                extrusion_distance=0.4):
+
+        # ensure float64 during all math
+        pts     = np.asarray(line,    dtype=np.float64)   # (n,2)
+        normals = np.asarray(normals, dtype=np.float64)   # (n,2)
+        x, y    = pts[:, 0], pts[:, 1]
+
+        spacing, _ = self.spacing_cell_thickness(
+            cell_thickness=cell_thickness,
+            growth=growth,
+            extrusion_distance=extrusion_distance
+        )  # spacing is np.float64 array
+
+        for s in spacing:
+            xo = x + s * normals[:, 0]    # float64
+            yo = y + s * normals[:, 1]    # float64
+
+            # Option 1: tuples of np.float64 scalars
+            poly = list(zip(map(np.float64, xo), map(np.float64, yo)))
+
+            # Option 2 (also fine): tuples of Python float (also 64-bit)
+            # poly = [(float(a), float(b)) for a, b in zip(xo, yo)]
+
+            self.addLine(poly)            # addLine stays unchanged (expects tuples)
+
+    """
     def extrudeLine_cell_thickness(self, line, normals, cell_thickness=0.04,
                                    growth=1.05,
                                    extrusion_distance= 0.4):
@@ -25,7 +54,7 @@ class BlockMesh:
             yo = y + spacing[i] * normals[:, 1]
             line = list(zip(xo.tolist(), yo.tolist()))
             self.addLine(line)
-
+    """
     def getNodeCoo(self, node):
         I, J = node[0], node[1]
         uline = self.getULines()[J]

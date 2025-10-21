@@ -35,12 +35,12 @@ class Connect:
             vertices += uline
         return vertices
 
-    def getNearestNeighboursPairs(self, vertices, radius=1.e-6):
+    def getNearestNeighboursPairs(self, vertices, radius=1.e-8):
         tree = spatial.cKDTree(vertices)
         pairs = tree.query_pairs(radius, p=2., eps=0)
         return pairs
 
-    def getNearestNeighbours(self, vertices, neighbours, radius=1.e-6):
+    def getNearestNeighbours(self, vertices, neighbours, radius=1.e-8):
         """Get the nearest neighbours to each vertex in a list of vertices
         uses Scipy kd-tree for quick nearest-neighbor lookup
 
@@ -112,7 +112,7 @@ class Connect:
         # the distance tolerance is specified via the radius variable
         vertex_and_neighbours = self.getNearestNeighbours(vertices,
                                                           vertices,
-                                                          radius=1.e-6)
+                                                          radius=1.e-8)
 
         # substitute vertex ids in connectivity at block connections
         connectivity_connected = list()

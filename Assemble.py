@@ -51,7 +51,6 @@ class Assemble:
         }
         airfoil_bd = [(x, y) for x, y in zip(xp, yp)]
         mesh.extrudeLine_cell_thickness(airfoil_bd, surf_normals, **ex_kwargs)
-
         self.blocks.append(mesh)
 
 
@@ -303,3 +302,4 @@ class Assemble:
         c_block.transfinite(boundary=boundary)
         
         self.blocks.append(c_block)
+        
