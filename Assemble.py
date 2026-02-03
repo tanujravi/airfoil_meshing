@@ -12,11 +12,12 @@ class Assemble:
 
     def __init__(self, config):
         self.blocks = list()
+        self.trias = list()
         self.config = config
 
     def assemble(self):
-
         af_cfg = self.config.get("airfoil", {})
+
         if "contour_file" not in af_cfg:
             raise KeyError("Missing required key 'contour_file' in Airfoil config.")
         kwargs_airfoil = {
@@ -53,253 +54,324 @@ class Assemble:
         mesh.extrudeLine_cell_thickness(airfoil_bd, surf_normals, **ex_kwargs)
         self.blocks.append(mesh)
 
+        ##########################################################################################################
 
-        te_mesh = BlockMesh()
+        ##########################################################################################################
+
+        shock_box = BlockMesh()
+        mesh_outer = mesh.getLine(number=-1, direction='u').copy()
+        boundaries_lower = []
+        surf_normals_lower = []
+
+        for i, (x, y) in enumerate(mesh_outer):
+            if 0.05 < x < 0.7 and y > 0:
+                boundaries_lower.append((x, y))
+                surf_normals_lower.append(surf_normals[i])
+        
+        boundaries_rest = [
+            (x, y) for (x, y) in mesh_outer
+            if not (0.05 < x < 0.7 and y > 0)
+        ]
+
+        boundaries_right_upper = [
+            (x, y) for (x, y) in boundaries_rest
+            if x > 0.7 and y > 0
+        ]
+
+        boundaries_rest_outer = [
+            (x, y) for (x, y) in boundaries_rest
+            if not (x > 0.7 and y > 0)
+        ]
+
+        ex_shock = self.config.get("shock_box", {})
+        length = ex_shock.get("box_height", 0.6)
+        growth = ex_shock.get("growth", 1.05)
+
+        cell_thick = np.linalg.norm(np.array(mesh.getLine(number=-1, direction='u').copy()[0])- np.array(mesh.getLine(number=-2, direction='u').copy()[0]))
+
+        dy = []
+        s = 0.0
+        h = float(cell_thick)
+
+        while s + h <= length + 1e-12:
+            dy.append(h)
+            s += h
+            h *= growth
+
+        ex_kwargs = {
+            "cell_thickness": cell_thick,
+            "growth": growth,
+            "extrusion_distance": length,
+        }
+        shock_box.extrudeLine_cell_thickness(boundaries_lower, surf_normals_lower, **ex_kwargs)
+        self.blocks.append(shock_box)
+        shock_right = shock_box.getLine(number= -1, direction="v")
+        shock_left = shock_box.getLine(number= 0, direction="v")
+        shock_upper = shock_box.getLine(number= -1, direction="u")
+
+        ########################################################################################################
+
+        ex_tunnel = self.config.get("wake_tunnel", {})
+        curve_bool = ex_tunnel.get("make_curve", True)
 
         line_airfoil_bound = mesh.getLine(number=0, direction = 'u')
         p0 = np.array(line_airfoil_bound[0])
         p1 = np.array(line_airfoil_bound[1])
         p2 = np.array(line_airfoil_bound[-1])
-        p3 = np.array(line_airfoil_bound[-2])
 
-        te_cfg = self.config.get("te_line_distribution", {})
-        te_kwargs = {
-            "h0": te_cfg.get("first_cell_thickness", 1e-4),
-            "r": te_cfg.get("growth", 1.05),
-            "even": te_cfg.get("even", False),
-        }
-        line = LineDistribution.symmetric_grow_decay_line(p0, p2, **te_kwargs)
-        #line = LineDistribution.symmetric_grow_decay_line(p0, p2, h0=0.0001, r=1.05, even=False)
-        te_ext = self.config.get("te_extrusion", {})
-        if te_ext.get("cell_thickness") == "auto":
+        n_po = ex_tunnel.get("n_points", 70)
+        p_te_up = p2
+        p_te_down = p0
 
-            thickness1 = np.linalg.norm(p1-p0)
-            thickness2 = np.linalg.norm(p2-p3)
-            te_mesh_cell_thickness = min(thickness1, thickness2)
-        else:
-            te_mesh_cell_thickness = float(te_ext.get("cell_thickness"))
+        len_te = np.linalg.norm(np.array(p_te_up)-np.array(p_te_down)) 
 
-        surf_normals_te = np.tile([1, 0], (len(line), 1))
+        ########################################################################################################
         
-        
-        
-        te_ex_kwargs = {
-            "cell_thickness": te_mesh_cell_thickness,
-            "growth": te_ext.get("growth", 1.005),
-            "extrusion_distance": te_ext.get("extrusion_distance", 0.05),
-        }
-        line.reverse()
-        te_mesh.extrudeLine_cell_thickness(line, surf_normals_te, **te_ex_kwargs)
-        self.blocks.append(te_mesh)
-        #sys.exit()
+        if curve_bool:
+            te_circular_outer = BlockMesh()
 
-        #sys.exit()
+            y_upper = p_te_up[1] + 0.25*len_te
 
-        te_upper_mesh = BlockMesh()
-        boundaries_lower = te_mesh.getLine(number=0, direction='v')
-        boundaries_left = mesh.getLine(number=-1, direction='v')
-        top_left = boundaries_left[-1]
-        bottom_right = boundaries_lower[-1]
-        top_right = (bottom_right[0], top_left[1])
-        boundaries_right = LineDistribution.divide_line_by_reference(bottom_right, top_right, boundaries_left)
-        boundaries_upper = LineDistribution.divide_line_by_reference(top_left, top_right, boundaries_lower)
-        boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
-        te_upper_mesh.transfinite(boundary=boundary)
+            te_upper_line = mesh.getLine(number=-1, direction='v').copy()
+            boundaries_upper = [p for p in te_upper_line if p[1] <= y_upper]
 
+            te_line_remaining_upper = [p for p in te_upper_line if p[1] > y_upper]
+            te_line_remaining_upper.insert(0, boundaries_upper[-1])
 
-        self.blocks.append(te_upper_mesh)
+            te_lower_line = mesh.getLine(number=0, direction='v').copy()
+            boundaries_lower = te_lower_line[:len(boundaries_upper)]
 
-        te_lower_mesh = BlockMesh()
+            te_line_remaining_lower = te_lower_line[len(boundaries_upper):]
+            te_line_remaining_lower.insert(0, boundaries_lower[-1])
+            boundaries_left = LineDistribution.arc_like_spline_from_2pts_2tangents(p2, line_airfoil_bound[1], line_airfoil_bound[0],
+                                                                        p0, line_airfoil_bound[-1], line_airfoil_bound[-2], n_points=n_po+1,  handle_scale=1.4)
+            
 
-        boundaries_upper = te_mesh.getLine(number=-1, direction='v')
-        boundaries_left = mesh.getLine(number=0, direction='v')
-        bottom_left = boundaries_left[-1]
-        top_right = boundaries_upper[-1]
-        bottom_right = (top_right[0], bottom_left[1])
-        boundaries_right = LineDistribution.divide_line_by_reference(top_right, bottom_right, boundaries_left)
-        boundaries_lower = LineDistribution.divide_line_by_reference(bottom_left, bottom_right, boundaries_upper)
+            pc1 = np.array(boundaries_upper[-1], float) 
+            pc2 = np.array(boundaries_lower[-1], float) 
+            T = np.array([1.0, 0.0])
+            if np.allclose(pc1, pc2): raise ValueError("Points must be distinct.")
+            M = 0.5*(pc1+pc2) 
+            v = pc2-pc1
+            n = np.array([-v[1], v[0]], float)
+            n /= np.linalg.norm(n)
+            s = n.dot(T - M)                      # closest point on the perpendicular bisector to T
+            centre_arc_te_skeleton = M + s*n                           # center (h,k) near (1,0)
+            R_arc_te_skeleton = np.linalg.norm(centre_arc_te_skeleton - pc1)            # radius
 
-        boundaries_left.reverse()
-        boundaries_right.reverse()       
-        boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
-        #boundary = [boundaries_upper, boundaries_lower, boundaries_right, boundaries_left]
-        #boundary = [boundaries_left, boundaries_right, boundaries_lower, boundaries_upper]
-        #LineDistribution.plot_lines(boundary)
-        te_lower_mesh.transfinite(boundary=boundary)
-
-        self.blocks.append(te_lower_mesh)
-
-        
-
-        V_block = BlockMesh()
-        
-        v_cfg = self.config.get("v_block", {})
-        cg = v_cfg.get("centerline_growth", {})
-        boundaries_left = te_lower_mesh.getLine(number=-1, direction="v")
-        boundaries_left.extend(list(reversed(te_mesh.getLine(number=-1, direction="u")))[1:])
-
-        boundaries_left.extend(te_upper_mesh.getLine(number=-1, direction="v")[1:])
-        start_point = (xp_te[0], 0.5*(max(yp_te) + min(yp_te)))
-        p0 = np.array(te_mesh.getLine(number=-1, direction="u")[0])
-        p1 = np.array(te_mesh.getLine(number=-2, direction="u")[0])
-        if cg.get("initial_cell_thickness") == "auto":
-            cell_thickness = np.linalg.norm(p0-p1)
-        else:
-            cell_thickness = float(cg.get("initial_cell_thickness"))
-
-        center_ref = LineDistribution.grow_to_min_length_line(start_point, h0=cell_thickness, 
-                                                    r=cg.get("growth", 1.02), 
-                                                    L=cg.get("min_length", 100.0), 
-                                                    direction=(1, 0))
-        slope = np.tan(np.radians(v_cfg.get("slope", 2.5)))
-        x0, y0 = boundaries_left[-1][0], boundaries_left[-1][1]
-        x_end1 = center_ref[-1][0]
-        y_end1 = y0 + slope*(x_end1-x0)
-        boundaries_upper = LineDistribution.divide_line_by_reference((x0,y0), (x_end1, y_end1), center_ref)
-
-        slope = np.tan(np.radians(-1*v_cfg.get("slope", 2.5)))
-        x0, y0 = boundaries_left[0][0], boundaries_left[0][1]
-        x_end2 = center_ref[-1][0]
-        y_end2 = y0 + slope*(x_end2-x0)
-        boundaries_lower = LineDistribution.divide_line_by_reference((x0,y0), (x_end2, y_end2), center_ref)
-
-        boundaries_right = LineDistribution.divide_line_by_reference((x_end2, y_end2), (x_end1, y_end1), boundaries_left)
-        boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
-
-        V_block.transfinite(boundary=boundary)
-
-        self.blocks.append(V_block)
-
-        
-        right_farfield_upper = BlockMesh()
-
-        rf = self.config.get("right_farfield", {})
-        c_radius = rf.get("c_radius", 50.0)
-        te_upper_line = te_upper_mesh.getLine(number=-1, direction="u")
-        p0 =  te_upper_mesh.getLine(number=0, direction="v")[0]
-        p1 =  te_upper_mesh.getLine(number=0, direction="v")[-1]
-
-        x_end = p0[0] + (p1[0]-p0[0])*(c_radius-p0[1])/(p1[1]-p0[1])
-        #LineDistribution.plot_lines([te_upper_line])
-        start = te_upper_line[0]
-        #end = (start[0], c_radius)
-        end = (x_end, c_radius)
-        n_segments = rf.get("n_segments", 70)
-        left_bound_cfg = rf.get("left_boundary")
-        step_limit_left = left_bound_cfg.get("step_limit", 0.1)
-        growth_left = left_bound_cfg.get("r", 1.08)
-        right_bound_cfg = rf.get("right_boundary")
-        step_limit_right = right_bound_cfg.get("step_limit", 0.5)
-        growth_right = right_bound_cfg.get("r", 1.3)
-
-        if left_bound_cfg.get("initial_cell_thickness") == "auto":
-            right_farfield_upper_normal = np.array(te_upper_mesh.getLine(number=-1, direction="u")[0]) - np.array(te_upper_mesh.getLine(number=-2, direction="u")[0])
-            right_farfield_upper_cell_thickness = np.linalg.norm(right_farfield_upper_normal)
-        else:
-            right_farfield_upper_cell_thickness = float(left_bound_cfg.get("initial_cell_thickness"))
-        boundaries_left = LineDistribution.gp_to_ap_by_step_threshold_line(start, end, n_segments, right_farfield_upper_cell_thickness, growth_left, step_limit_left) 
-
-        V_upper_line = V_block.getLine(number=-1, direction="u")
-        start = V_upper_line[-1]
-        end = (start[0], c_radius)
-
-        if right_bound_cfg.get("initial_cell_thickness") == "auto":
-            V_upper_normal = np.array(V_block.getLine(number=-1, direction="v")[-1]) - np.array(V_block.getLine(number=-1, direction="v")[-2])
-            V_upper_cell_thickness = np.linalg.norm(V_upper_normal)
-        else:
-            V_upper_cell_thickness = float(right_bound_cfg.get("initial_cell_thickness"))
-
-
-        boundaries_right = LineDistribution.gp_to_ap_by_step_threshold_line(start, end, n_segments, V_upper_cell_thickness, growth_right, step_limit_right)
-        boundaries_lower = te_upper_mesh.getLine(number=-1, direction="u")
-        boundaries_lower.extend(V_block.getLine(number=-1, direction="u")[1:])
-        #boundaries_upper = [(x, c_radius) for (x, _) in boundaries_lower]
-        boundaries_upper = LineDistribution.divide_line_by_reference(boundaries_left[-1], boundaries_right[-1], boundaries_lower)
-        boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
-        right_farfield_upper.transfinite(boundary=boundary)
-
-        self.blocks.append(right_farfield_upper)
-
-
-        #####################################################done
-
-        right_farfield_lower = BlockMesh()
-
-        te_lower_line = te_lower_mesh.getLine(number=0, direction="u")
-        start = te_lower_line[0]
-        #end = (start[0], -1*c_radius)
-        p0 =  te_lower_mesh.getLine(number=0, direction="v")[-1]
-        p1 =  te_lower_mesh.getLine(number=0, direction="v")[0]
-        
-        x_end = p0[0] + (p1[0]-p0[0])*(-c_radius-p0[1])/(p1[1]-p0[1])
-        end = (x_end, -1*c_radius)
-
-        if left_bound_cfg.get("initial_cell_thickness") == "auto":
-            right_farfield_lower_normal = np.array(te_lower_mesh.getLine(number=0, direction="u")[0]) - np.array(te_lower_mesh.getLine(number=1, direction="u")[0])
-            right_farfield_lower_cell_thickness = np.linalg.norm(right_farfield_lower_normal)
-        else:
-            right_farfield_lower_cell_thickness = float(left_bound_cfg.get("initial_cell_thickness"))
-
-
-        
-        boundaries_left = LineDistribution.gp_to_ap_by_step_threshold_line(start, end, n_segments, right_farfield_lower_cell_thickness, growth_left, step_limit_left) 
-        boundaries_left.reverse()
-
-        
-        V_lower_line = V_block.getLine(number=0, direction="u")
-        start = V_lower_line[-1]
-        end = (start[0], -1*c_radius)
-        
-        if right_bound_cfg.get("initial_cell_thickness") == "auto":
-            V_lower_normal = np.array(V_block.getLine(number=-1, direction="v")[0]) - np.array(V_block.getLine(number=-1, direction="v")[1])
-            V_lower_cell_thickness = np.linalg.norm(V_lower_normal)
-        else:
-            V_lower_cell_thickness = float(right_bound_cfg.get("initial_cell_thickness"))
-        
-        
-        boundaries_right = LineDistribution.gp_to_ap_by_step_threshold_line(start, end, n_segments, V_lower_cell_thickness, growth_right, step_limit_right)
-        boundaries_right.reverse()
-        
-        boundaries_upper = te_lower_mesh.getLine(number=0, direction="u").copy()
-        boundaries_upper.extend(V_block.getLine(number=0, direction="u")[1:])
-        
-        #boundaries_lower = [(x, -1*c_radius) for (x, _) in boundaries_upper]
-        boundaries_lower = LineDistribution.divide_line_by_reference(boundaries_left[0], boundaries_right[0], boundaries_upper)
-        
-        #boundaries_upper.reverse()
-        #boundaries_lower.reverse()
-        boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
-
-        right_farfield_lower.transfinite(boundary=boundary)
-
-        self.blocks.append(right_farfield_lower)
-
-        
-        c_block = BlockMesh()
-        p1 = right_farfield_upper.getLine(number = 0, direction = "v")[-1]
-        p2 = right_farfield_lower.getLine(number = 0, direction = "v")[0]
-        #sys.exit()
-        boundaries_left = mesh.getLine(number=-1, direction="u")
-
-        boundaries_right = LineDistribution.find_alphas(
-            p2, p1,
-            ref_polyline=boundaries_left,
-            normals=surf_normals,
-            alphaMin_max=0.7,
-            alphaMax_max=0.9,
-            gamma=0.01,
-            tol_xi=1e-5,
-            direction="cw",
+            normal_ref = LineDistribution.dist_arc_with_normals_spline(p1=boundaries_upper[-1], p2=boundaries_lower[-1],
+                ref_polyline=boundaries_left,
+                    center=centre_arc_te_skeleton,
+                    radius=R_arc_te_skeleton,
             )
+            boundaries_right = LineDistribution.dist_arc_with_ref_spacing(p1=boundaries_upper[-1], p2=boundaries_lower[-1], 
+                                                                        center=centre_arc_te_skeleton, radius=R_arc_te_skeleton,
+                                                                        ref_polyline=normal_ref, direction="cw", alpha=0.9)
+
+            boundaries_left.reverse()
+            boundaries_right.reverse()
+            boundary = [ boundaries_upper, boundaries_lower, boundaries_left, boundaries_right]
+
+            te_circular_outer.transfinite(boundary=boundary)
+            self.blocks.append(te_circular_outer)
+            te_line = te_circular_outer.getLine(number=-1, direction="v").copy()
+        else:
+            p_te_up_arr = np.array(p_te_up, dtype=float)
+            p_te_down_arr = np.array(p_te_down, dtype=float)
+
+            t = np.linspace(0.0, 1.0, n_po)
+
+            # down point first
+            te_line = [
+                tuple(p_te_down_arr + ti * (p_te_up_arr - p_te_down_arr))
+                for ti in t
+            ]
+            te_line_remaining_lower = mesh.getLine(number=0, direction='v').copy()
+            te_line_remaining_upper = mesh.getLine(number=-1, direction='v').copy()
+        ##########################################################################################################
 
 
-        boundaries_upper = right_farfield_upper.getLine(number=0, direction="v")
-        boundaries_lower = right_farfield_lower.getLine(number=0, direction="v")
-        boundaries_lower.reverse()
-
-        #boundary = [boundaries_lower, boundaries_upper, boundaries_left, boundaries_right]
-        boundary = [boundaries_left, boundaries_right, boundaries_lower, boundaries_upper]
-        c_block.transfinite(boundary=boundary)
+        import gmsh
+        airfoil_line = te_line_remaining_lower.copy()
+        airfoil_line.reverse()
+        airfoil_line1 = te_line_remaining_upper.copy()
+        airfoil_line.extend(te_line[1:])
         
-        self.blocks.append(c_block)
+        airfoil_line.extend(airfoil_line1[1:])
+
+
+
+        angle_deg = ex_shock.get("angle", 5.0)     # magnitude of slope angle (deg)
+        Lx        = ex_shock.get("length", 5.0)      # horizontal length to the right (sets the vertical right boundary x)
         
+        
+        ex_mesh = self.config.get("tria_mesh_settings", {})
+        
+        ds = ex_mesh.get("wake_size", 0.01)     # spacing
+        lc_block1 = ex_mesh.get("wake_size", 0.01)
+
+        ex_farfield = ex_mesh.get("farfield", "")
+        lc_inner = ex_farfield.get("min_size", 0.3)
+        lc_outer = ex_farfield.get("max_size", 3.2)
+        d1       = ex_farfield.get("grading", 0.3)
+
+        # Ensure left boundary goes bottom -> top
+        if airfoil_line[0][1] > airfoil_line[-1][1]:
+            airfoil_line = airfoil_line[::-1]
+
+        # Left boundary endpoints
+        xL_bot, yL_bot = airfoil_line[0]
+        xL_top, yL_top = airfoil_line[-1]
+
+        ang = np.deg2rad(angle_deg)
+
+        # Common right-boundary x (vertical right side)
+        xR = xL_top + Lx   # could also use xL_bot + Lx; same if Lx is "horizontal length"
+
+        yR_top = yL_top + np.tan(+ang) * (xR - xL_top)
+
+        LU = np.hypot(xR - xL_top, yR_top - yL_top)
+        nU = max(1, int(np.ceil(LU / ds)))
+        tU = np.linspace(0.0, 1.0, nU + 1)[1:]  # skip start point
+
+        upper_line = [
+            (xL_top + tt * (xR - xL_top),
+            yL_top + tt * (yR_top - yL_top))
+            for tt in tU
+        ]
+
+        yR_bot = yL_bot + np.tan(-ang) * (xR - xL_bot)
+
+        LL = np.hypot(xR - xL_bot, yR_bot - yL_bot)
+        nL = max(1, int(np.ceil(LL / ds)))
+        tL = np.linspace(0.0, 1.0, nL + 1)[1:]  # skip start point
+
+        lower_line = [
+            (xL_bot + tt * (xR - xL_bot),
+            yL_bot + tt * (yR_bot - yL_bot))
+            for tt in tL
+        ]
+
+        LR = abs(yR_top - yR_bot)
+        nR = max(1, int(np.ceil(LR / ds)))
+        tR = np.linspace(0.0, 1.0, nR + 1)[1:-1]  # skip both ends (already in upper/lower)
+
+        right_line = [
+            (xR, yR_bot + tt * (yR_top - yR_bot))
+            for tt in tR
+        ]
+
+        poly_pts = airfoil_line + upper_line + right_line[::-1] + lower_line[::-1]
+
+        inner_airfoil_line = boundaries_rest_outer.copy()
+        inner_airfoil_line.extend(shock_left[:])
+       
+        inner_airfoil_line.extend(shock_upper[1:])
+        
+        shock_right.reverse()
+
+        inner_airfoil_line.extend(shock_right[1:])
+        inner_airfoil_line.extend(boundaries_right_upper)
+        inner_airfoil_line.extend(upper_line)
+        inner_airfoil_line.extend(right_line[::-1])
+        inner_airfoil_line.extend(lower_line[::-1])
+
+        ex_fardim = self.config.get("farfield", {})
+        L_farfield = ex_fardim.get("length", 100)
+        R_farfield = ex_fardim.get("radius", 50)
+
+        L_tot = np.pi*R_farfield + 2*R_farfield + 2*L_farfield
+        n_outer = int(np.ceil(L_tot/lc_outer))
+        print(n_outer)
+        #outer_airfoil_line = LineDistribution.closed_left_U(bottom_right=(L_farfield, -1*R_farfield), vert_len=100,horiz_len=100, n_segments=len(inner_airfoil_line)//6-1)[1:]
+        outer_airfoil_line = LineDistribution.closed_left_U(bottom_right=(L_farfield, -1*R_farfield), vert_len=100,horiz_len=100, n_segments=n_outer)[1:]
+
+
+        algo = 6  # 2D meshing algorithm
+
+        gmsh.initialize()
+        gmsh.model.add("two_blocks_unstructured")
+        gmsh.option.setNumber("Mesh.Algorithm", algo)
+
+        # ---- Block 1: polygon surface ----
+        p1 = [gmsh.model.occ.addPoint(x, y, 0.0) for (x, y) in poly_pts]
+        l1 = [gmsh.model.occ.addLine(p1[i], p1[(i + 1) % len(p1)]) for i in range(len(p1))]
+        w1 = gmsh.model.occ.addWire(l1)
+        surf1 = gmsh.model.occ.addPlaneSurface([w1])
+
+        # ---- Block 2: annulus surface (outer with inner hole) ----
+        p_out = [gmsh.model.occ.addPoint(x, y, 0.0) for (x, y) in outer_airfoil_line]
+        l_out = [gmsh.model.occ.addLine(p_out[i], p_out[(i + 1) % len(p_out)]) for i in range(len(p_out))]
+        w_out = gmsh.model.occ.addWire(l_out)
+
+        p_in = [gmsh.model.occ.addPoint(x, y, 0.0) for (x, y) in inner_airfoil_line]
+        l_in = [gmsh.model.occ.addLine(p_in[i], p_in[(i + 1) % len(p_in)]) for i in range(len(p_in))]
+        w_in = gmsh.model.occ.addWire(l_in)
+
+        surf2 = gmsh.model.occ.addPlaneSurface([w_out, w_in])
+
+        gmsh.model.occ.synchronize()
+
+        # OPTIONAL (recommended if blocks touch/share boundaries):
+        # makes conforming mesh if they overlap/touch
+        gmsh.model.occ.fragment([(2, surf1), (2, surf2)], [])
+        gmsh.model.occ.synchronize()
+
+
+        # =======================
+        # Mesh size fields (combine with Min)
+        # =======================
+
+        # --- Block 2 grading from inner boundary curves (Distance -> Threshold) ---
+        f_dist = gmsh.model.mesh.field.add("Distance")
+        gmsh.model.mesh.field.setNumbers(f_dist, "CurvesList", l_in)    # grade from inner curves
+        gmsh.model.mesh.field.setNumber(f_dist, "NumPointsPerCurve", 50)
+
+        f_thr = gmsh.model.mesh.field.add("Threshold")
+        gmsh.model.mesh.field.setNumber(f_thr, "InField", f_dist)
+        gmsh.model.mesh.field.setNumber(f_thr, "LcMin", float(lc_inner))
+        gmsh.model.mesh.field.setNumber(f_thr, "LcMax", float(lc_outer))
+        gmsh.model.mesh.field.setNumber(f_thr, "DistMin", 0.0)
+        gmsh.model.mesh.field.setNumber(f_thr, "DistMax", float(d1))
+
+        # --- Block 1 constant size restricted to surf1 ---
+        f_c1 = gmsh.model.mesh.field.add("Constant")
+        gmsh.model.mesh.field.setNumber(f_c1, "VIn", float(lc_block1))
+
+        f_r1 = gmsh.model.mesh.field.add("Restrict")
+        gmsh.model.mesh.field.setNumber(f_r1, "InField", f_c1)
+        gmsh.model.mesh.field.setNumbers(f_r1, "SurfacesList", [surf1])
+
+        # --- Combine both fields: smallest size wins ---
+        f_min = gmsh.model.mesh.field.add("Min")
+        gmsh.model.mesh.field.setNumbers(f_min, "FieldsList", [f_thr, f_r1])
+        gmsh.model.mesh.field.setAsBackgroundMesh(f_min)
+
+        # Generate 2D mesh
+        gmsh.model.mesh.generate(2)
+
+        # =======================
+        # Extract global TRI3 mesh (same as you did)
+        # =======================
+        node_tags, node_coords, _ = gmsh.model.mesh.getNodes()
+        P3 = np.asarray(node_coords, dtype=float).reshape(-1, 3)
+
+        types, elem_tags, node_tags_elem = gmsh.model.mesh.getElements(2)
+        TRI3_TYPE = 2
+
+        T_tags = None
+        for etype, e_tags, conn in zip(types, elem_tags, node_tags_elem):
+            if etype == TRI3_TYPE:
+                n_elems = len(e_tags)
+                nper = len(conn) // n_elems
+                T_tags = np.asarray(conn, dtype=np.int64).reshape(-1, nper)
+                break
+
+        tag_to_idx = {int(tag): i for i, tag in enumerate(node_tags.tolist())}
+        T = np.vectorize(tag_to_idx.get, otypes=[np.int64])(T_tags)
+
+        dict_tria = {"P": P3, "connectivity": T}
+        self.trias.append(dict_tria)
+
+        # gmsh.fltk.run()   # enable if you want to see it
+        gmsh.finalize()

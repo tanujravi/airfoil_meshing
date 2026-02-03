@@ -79,7 +79,7 @@ class Connect:
 
         return connectivity_shifted
     
-    def connectAllBlocks(self, blocks):
+    def connectAllBlocks(self, blocks, trias):
 
         # compile global vertex list and cell connectivity from all blocks
         vertices = list()
@@ -103,6 +103,19 @@ class Connect:
                 self.shiftConnectivity(self.getConnectivity(block), shift)
             connectivity += [tuple(cell) for cell in connectivity_block]
 
+
+        for d in trias:
+            P3 = np.asarray(d["P"], dtype=float)
+            T  = np.asarray(d["connectivity"], dtype=int)
+            if P3.ndim != 2 or P3.shape[1] < 2:
+                raise ValueError("tria P must be (N,2) or (N,3)")
+            if T.ndim != 2 or T.shape[1] != 3:
+                raise ValueError("tria connectivity must be (M,3) for TRI3")
+            shift = len(vertices)
+            verts_t = [(float(x), float(y)) for x, y, *rest in P3]
+            vertices += verts_t
+            con_t = [[int(i) + shift, int(j) + shift, int(k) + shift] for i, j, k in T]
+            connectivity += con_t
     
         vertices = [(vertex[0], vertex[1]) for vertex in vertices]
 
@@ -113,6 +126,23 @@ class Connect:
         vertex_and_neighbours = self.getNearestNeighbours(vertices,
                                                           vertices,
                                                           radius=1.e-8)
+
+        connectivity_connected = []
+        for cell in connectivity:
+            # replace each node by the smallest index among its near-duplicates
+            connectivity_connected.append([min(vertex_and_neighbours[n]) for n in cell])
+
+        # 4) Build compact numbering: keep only vertices that are actually referenced
+        used_old_ids = sorted({n for cell in connectivity_connected for n in cell})
+        old_to_new = {old: new for new, old in enumerate(used_old_ids)}
+
+        vertices_clean = [vertices[old] for old in used_old_ids]
+        connectivity_clean = [[old_to_new[n] for n in cell] for cell in connectivity_connected]
+
+        return vertices_clean, connectivity_clean
+
+
+        """
 
         # substitute vertex ids in connectivity at block connections
         connectivity_connected = list()
@@ -127,6 +157,7 @@ class Connect:
                 node_new = min(vertex_and_neighbours[node])
                 cell_new.append(node_new)
             connectivity_connected.append(cell_new)
+
 
         # use numpy arrays
         unconnected = np.array(connectivity)
@@ -153,3 +184,4 @@ class Connect:
 
         return (vertices_clean, connectivity_clean)
 
+        """

@@ -48,8 +48,8 @@ expansionRatio   1.0;
 // Merge front and back patches, typically for 360 deg wedge extrusion
 mergeFaces       false;
 mergeTol         0;
-/*
-extrudeModel         linearDirection;
+
+/*extrudeModel         linearDirection;
 linearDirectionCoeffs
 {
     direction       (0 0 1);   // pick your global Z (or Y) out of plane
