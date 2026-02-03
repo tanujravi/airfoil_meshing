@@ -1,3 +1,8 @@
+"""
+This code is taken and adapted according to requirement from PyAero repository.
+GitHub: https://github.com/chiefenne/PyAero 
+"""
+
 from scipy import spatial
 import numpy as np
 class Connect:
@@ -142,46 +147,3 @@ class Connect:
         return vertices_clean, connectivity_clean
 
 
-        """
-
-        # substitute vertex ids in connectivity at block connections
-        connectivity_connected = list()
-        for cell in connectivity:
-            cell_new = list()
-            for node in cell:
-                # if there is only one vertex in vertex_and_neighbours,
-                # then it is taken as it is
-                # if there is more than one vertex,
-                # then the minimum vertex index is used
-                # so a few vertices remain unused and need to be removed later
-                node_new = min(vertex_and_neighbours[node])
-                cell_new.append(node_new)
-            connectivity_connected.append(cell_new)
-
-
-        # use numpy arrays
-        unconnected = np.array(connectivity)
-        connected = np.array(connectivity_connected)
-
-        # deleted nodes
-        deleted_nodes = np.unique(unconnected[np.where(connected != unconnected)])
-
-        # delete unused vertices
-        vertices_clean = [v for i,v in enumerate(vertices)
-                        if i not in sorted(deleted_nodes.tolist())]
-
-        # find remaining node ids
-        remaining_nodes = np.setdiff1d(np.unique(connected), deleted_nodes)
-
-        # replace node ids so that a contiguous numbering is established
-        # divakar, method 3 (https://stackoverflow.com/a/55950051/2264936)
-        mapping = {rn:i for i, rn in enumerate(remaining_nodes)}
-        k = np.array(list(mapping.keys()))
-        v = np.array(list(mapping.values()))
-        mapping_ar = np.zeros(k.max()+1,dtype=v.dtype)
-        mapping_ar[k] = v
-        connectivity_clean = mapping_ar[connected]
-
-        return (vertices_clean, connectivity_clean)
-
-        """

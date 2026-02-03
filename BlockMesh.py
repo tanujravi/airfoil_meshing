@@ -1,3 +1,8 @@
+"""
+This code is taken and adapted according to requirement from PyAero repository.
+GitHub: https://github.com/chiefenne/PyAero 
+"""
+
 import numpy as np
 from scipy.interpolate import splprep
 
@@ -38,23 +43,6 @@ class BlockMesh:
 
             self.addLine(poly)            # addLine stays unchanged (expects tuples)
 
-    """
-    def extrudeLine_cell_thickness(self, line, normals, cell_thickness=0.04,
-                                   growth=1.05,
-                                   extrusion_distance= 0.4):
-        x, y = list(zip(*line))
-        #x = np.array(x)
-        #y = np.array(y)
-        spacing, _ = self.spacing_cell_thickness(
-            cell_thickness=cell_thickness,
-            growth=growth,
-            extrusion_distance=extrusion_distance)
-        for i in range(0, len(spacing)):
-            xo = x + spacing[i] * normals[:, 0]
-            yo = y + spacing[i] * normals[:, 1]
-            line = list(zip(xo.tolist(), yo.tolist()))
-            self.addLine(line)
-    """
     def getNodeCoo(self, node):
         I, J = node[0], node[1]
         uline = self.getULines()[J]
@@ -100,13 +88,6 @@ class BlockMesh:
         right = right_v[jstart:jend + 1]
 
         # Build boundary curves from the parent mesh
-        """
-        lower = self.getULines()[jstart][istart:iend + 1]
-        upper = self.getULines()[jend][istart:iend + 1]
-        left  = [self.getULines()[j][istart] for j in range(jstart, jend + 1)]
-        right = [self.getULines()[j][iend]   for j in range(jstart, jend + 1)]
-        """
-        # Create a fresh block and populate via transfinite on these boundaries
         sub = BlockMesh()
         sub.transfinite(boundary=[lower, upper, left, right])
 

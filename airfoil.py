@@ -6,8 +6,7 @@ import logging
 import numpy as np
 from pandas import read_csv
 from scipy.interpolate import BSpline, make_interp_spline
-import scipy
-import Elliptic
+
 logging.basicConfig(
     format="{asctime} - {levelname} - {message}",
     style="{",

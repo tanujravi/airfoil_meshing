@@ -2,10 +2,7 @@ from Assemble import Assemble
 from Connect import Connect
 from yaml import safe_load
 from mesh import Mesh
-import meshio
 import sys
-import numpy as np
-
 
 
 if __name__ == "__main__":

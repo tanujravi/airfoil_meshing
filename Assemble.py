@@ -1,13 +1,8 @@
 from airfoil import Airfoil
 from BlockMesh import BlockMesh
-from Connect import Connect
 import numpy as np
-import matplotlib.pyplot as plt
 from LineDistribution import LineDistribution
-import Elliptic
-import sys
-from Smooth_angle_based import SmoothAngleBased
-from Smooth import Smooth
+
 class Assemble:
 
     def __init__(self, config):
