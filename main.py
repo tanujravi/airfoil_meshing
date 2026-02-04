@@ -19,6 +19,5 @@ if __name__ == "__main__":
     connect = Connect()
     vertices, connectivity = connect.connectAllBlocks(assemble.blocks, assemble.trias)
     mesh = Mesh(vertices, connectivity)
-    mesh.write_obj("mesh.obj")
-    #mesh.extrudeTo3d(thickness=0.1, zmax_name="front", zmin_name="back")
-    #mesh.write_gmsh22_ascii(msh_name = "mesh.msh")
+    ex = config.get("output", {})
+    mesh.write_obj(ex.get("obj_filename", "mesh.obj"))

@@ -1,7 +1,6 @@
 aero
 *.dat
 *.obj
-data
 __py*
 *.msh
 *.vtk

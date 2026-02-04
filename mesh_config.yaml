@@ -23,6 +23,8 @@ airfoil_extrusion:
 shock_box:
   growth: 1.01
   box_height: 0.6
+  xmin: 0.05
+  xmax: 0.7
 
 wake_tunnel:
   n_points: 70
@@ -33,7 +35,7 @@ wake_tunnel:
 tria_mesh_settings:
   wake_size: 0.02
   farfield:
-    min_size: 0.1
+    min_size: 0.02
     max_size: 3.2
     grading: 0.01
 

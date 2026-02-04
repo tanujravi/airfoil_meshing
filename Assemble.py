@@ -58,29 +58,31 @@ class Assemble:
         boundaries_lower = []
         surf_normals_lower = []
 
+        ex_shock = self.config.get("shock_box", {})
+        length = ex_shock.get("box_height", 0.6)
+        growth = ex_shock.get("growth", 1.05)
+        xMin_shock = ex_shock.get("xmin", 0.05)
+        xMax_shock = ex_shock.get("xmax", 0.7)
+
         for i, (x, y) in enumerate(mesh_outer):
-            if 0.05 < x < 0.7 and y > 0:
+            if xMin_shock < x < xMax_shock and y > 0:
                 boundaries_lower.append((x, y))
                 surf_normals_lower.append(surf_normals[i])
         
         boundaries_rest = [
             (x, y) for (x, y) in mesh_outer
-            if not (0.05 < x < 0.7 and y > 0)
+            if not (xMin_shock < x < xMax_shock and y > 0)
         ]
 
         boundaries_right_upper = [
             (x, y) for (x, y) in boundaries_rest
-            if x > 0.7 and y > 0
+            if x > xMax_shock and y > 0
         ]
 
         boundaries_rest_outer = [
             (x, y) for (x, y) in boundaries_rest
-            if not (x > 0.7 and y > 0)
+            if not (x > xMax_shock and y > 0)
         ]
-
-        ex_shock = self.config.get("shock_box", {})
-        length = ex_shock.get("box_height", 0.6)
-        growth = ex_shock.get("growth", 1.05)
 
         cell_thick = np.linalg.norm(np.array(mesh.getLine(number=-1, direction='u').copy()[0])- np.array(mesh.getLine(number=-2, direction='u').copy()[0]))
 
@@ -196,8 +198,8 @@ class Assemble:
 
 
 
-        angle_deg = ex_shock.get("angle", 5.0)     # magnitude of slope angle (deg)
-        Lx        = ex_shock.get("length", 5.0)      # horizontal length to the right (sets the vertical right boundary x)
+        angle_deg = ex_tunnel.get("angle", 5.0)     # magnitude of slope angle (deg)
+        Lx        = ex_tunnel.get("length", 5.0)      # horizontal length to the right (sets the vertical right boundary x)
         
         
         ex_mesh = self.config.get("tria_mesh_settings", {})
@@ -277,7 +279,6 @@ class Assemble:
 
         L_tot = np.pi*R_farfield + 2*R_farfield + 2*L_farfield
         n_outer = int(np.ceil(L_tot/lc_outer))
-        print(n_outer)
         #outer_airfoil_line = LineDistribution.closed_left_U(bottom_right=(L_farfield, -1*R_farfield), vert_len=100,horiz_len=100, n_segments=len(inner_airfoil_line)//6-1)[1:]
         outer_airfoil_line = LineDistribution.closed_left_U(bottom_right=(L_farfield, -1*R_farfield), vert_len=100,horiz_len=100, n_segments=n_outer)[1:]
 
