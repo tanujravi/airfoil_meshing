@@ -83,7 +83,7 @@ Replace the mesh file name as required.
     </td>
   </tr>
 </table>
-It is observed that the horizontal mesh length of one of the elements in the buffet zone reduces from 0.00924 to 0.0085. Further improvements can be made by allocating less points in the trailing edge using "weight_te".
+It is observed that the horizontal mesh length of one element in the buffet region is reduced from 0.0092 to 0.0085. Further refinement can be achieved by allocating fewer points in the trailing-edge region using the weight_te parameter, so that more points are distributed in the buffet zone.
 
 2. weight_curvature - Increases the distibution of points where the curvature is high i.e. Nose of the airfoil. 
 <table align="center">
@@ -99,7 +99,7 @@ It is observed that the horizontal mesh length of one of the elements in the buf
   </tr>
 </table>
 
-Note: It is observed when two different weights at the same time, the sensitivites of different weights are different. Sometime a weight needs to be changes with orders of magnitude to notice any difference. This was observed when simultaenously changing "weight_upper" and "weight_curvature", a weight_curvature = 100 was required to see additonal point sin the nose when increasing the "weight_upper".
+Note: When multiple weighting functions are applied simultaneously, their sensitivities can differ significantly. In some cases, one weighting parameter must be varied by orders of magnitude before its effect becomes noticeable. This behavior was observed when adjusting weight_upper and weight_curvature at the same time. In particular, a value of weight_curvature = 100 was required before additional points appeared near the leading edge (nose) when increasing weight_upper.
 
 3. weight_te - Increases points distribution towards the trailing edge region.
 <table align="center">
@@ -144,7 +144,7 @@ The trailing edge region where this bias is applied is controlled using "fractio
   </tr>
 </table>
 
-6. make_curve (wake) - Provides option to enable or disable to make the trailing edge curved. 
+6. make_curve (wake) - Provides an option to enable or disable a curved trailing edge.
 <table align="center">
   <tr>
     <td align="center">
@@ -201,5 +201,5 @@ Notes: No. of elements for wake_size = 0.02 is 222,346 and for wake_size = 0.01 
   </tr>
 </table>
 
-10. Fafield mesh grading - Seems to have no effect, more investigation required. 
+10. Fafield mesh grading - Seems to have no effect, more investigation is required. 
 
