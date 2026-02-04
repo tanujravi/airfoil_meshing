@@ -3,9 +3,9 @@
 This project focuses on the generation of high-quality 2D C-type meshes for airfoil geometries, starting from a given airfoil contour and using as few user-defined parameters as possible. The generated meshes are designed such that a depth-extruded version is suitable for Delayed Detached Eddy Simulation (DDES) ([meshing guideline](https://www.aiaa-dpw.org/ref/gridding_guidelines_v3_07012024.pdf)).
 
 **Background and Reference**:
-- [pyAero](https://github.com/chiefenne/PyAero); the package was evaluated as a reference implemented. Although, it implements many of the required features; however, initial tests revealed the following issues:
+- [pyAero](https://github.com/chiefenne/PyAero); the package was evaluated as a reference. Although, it implements many of the required features; however, initial tests revealed the following issues:
   - loading the contour data is not very robust
-  - the implementation can't deal with contours that already come with a tailing edge
+  - the implementation can't deal with contours that already come with a trailing edge
   - the contour refinement is not smooth enough for DDES-type simulations; the algorithms introduces 1.5-ratio jumps in the cell edge length along the contour
 
 The current implementation addresses the above limitations through the following:
@@ -59,7 +59,7 @@ python main.py mesh_config.yaml
 ```
 Mesh parameters can be adjusted in "mesh_config.yaml" file.
 
-This generates a 2D mesh in obj format. The mesh can be extruded and converted to OpenFOAM format with boundary conditions included using
+This generates a 2D mesh in obj format. The mesh can be extruded and converted to OpenFOAM format with boundary conditions included, using
 ```
 cd openFOAM_mesh
 cp ../mesh.obj .
