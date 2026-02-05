@@ -39,7 +39,11 @@ Options are provided to make the wake region finer.
 The mesh settings used to generate this mesh are provided in the default "mesh_config.yaml" file.
 
 ## Dependencies
-
+To clone the repository:
+```
+git clone https://github.com/tanujravi/airfoil_meshing.git
+cd airfoil_meshing
+```
 Setting up a suitable Python environment:
 ```
 python3 -m venv aero
@@ -47,7 +51,7 @@ source aero/bin/activate
 pip install -U pip
 pip install -r requirements.txt
 ```
-The OAT15A airfoil contour data can be downloaded [here](https://aiaa-dpw.larc.nasa.gov/geometry.html).
+The OAT15A airfoil contour data can be downloaded [here](https://www.aiaa-dpw.org/geometry.html).
 
 ## How to run
 
@@ -69,8 +73,21 @@ cp ../mesh.obj .
 Replace the mesh file name as required.
 
 ## Parameter variation
+1. n_points (airfoil_boundary) - Increases the number of mesh points allocated to the surface of the airfoil contour
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="data/images/parameter_variation/n_points_airfoil_base.png" width="400"><br>
+      <em>(a) n_points = 500</em>
+    </td>
+    <td align="center">
+      <img src="data/images/parameter_variation/n_points_airfoil_act.png" width="400"><br>
+      <em>(b) n_points = 700</em>
+    </td>
+  </tr>
+</table>
 
-1. weight_upper - Increases the number of mesh nodes distributed to the suction side of airfoil
+2. weight_upper - Increases the number of mesh nodes distributed to the suction side of airfoil
 <table align="center">
   <tr>
     <td align="center">
@@ -85,7 +102,7 @@ Replace the mesh file name as required.
 </table>
 It is observed that the horizontal mesh length of one element in the buffet region is reduced from 0.0092 to 0.0085. Further refinement can be achieved by allocating fewer points in the trailing-edge region using the weight_te parameter, so that more points are distributed in the buffet zone.
 
-2. weight_curvature - Increases the distibution of points where the curvature is high i.e. Nose of the airfoil. 
+3. weight_curvature - Increases the distibution of points where the curvature is high i.e. Nose of the airfoil. 
 <table align="center">
   <tr>
     <td align="center">
@@ -101,7 +118,7 @@ It is observed that the horizontal mesh length of one element in the buffet regi
 
 Note: When multiple weighting functions are applied simultaneously, their sensitivities can differ significantly. In some cases, one weighting parameter must be varied by orders of magnitude before its effect becomes noticeable. This behavior was observed when adjusting weight_upper and weight_curvature at the same time. In particular, a value of weight_curvature = 100 was required before additional points appeared near the leading edge (nose) when increasing weight_upper.
 
-3. weight_te - Increases points distribution towards the trailing edge region.
+4. weight_te - Increases points distribution towards the trailing edge region.
 <table align="center">
   <tr>
     <td align="center">
@@ -116,7 +133,22 @@ Note: When multiple weighting functions are applied simultaneously, their sensit
 </table>
 The trailing edge region where this bias is applied is controlled using "fraction_te".
 
-4. shock box dimensions - Controls the dimensions of the structured mesh region where shock buffet is expected to happen.
+5. Airfoil boundary layer dimensions - Controls the dimensions of the airfoil boundary layer, namely the first-layer thickness (cell_thickness, t), the growth ratio (growth, r) and extrusion length (extrusion_distance, L).
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="data/images/parameter_variation/airfoil_bl_base.png" width="400"><br>
+      <em>(a) t = 1e-5, r = 1.03, L = 0.3</em>
+    </td>
+    <td align="center">
+      <img src="data/images/parameter_variation/airfoil_bl_act.png" width="400"><br>
+      <em>(b) t = 2e-5, r = 1.04, L = 0.5</em>
+    </td>
+  </tr>
+</table>
+
+6. Shock box dimensions - Controls the dimensions of the structured mesh region where shock buffet is expected to happen.
 <table align="center">
   <tr>
     <td align="center">
@@ -130,7 +162,7 @@ The trailing edge region where this bias is applied is controlled using "fractio
   </tr>
 </table>
 
-5. n_points (wake_tunnel) - Controls number of points used to make the boundary at the trailing edge.
+7. n_points (wake_tunnel) - Controls number of points used to make the boundary at the trailing edge.
 <table align="center">
   <tr>
     <td align="center">
@@ -144,7 +176,7 @@ The trailing edge region where this bias is applied is controlled using "fractio
   </tr>
 </table>
 
-6. make_curve (wake) - Provides an option to enable or disable a curved trailing edge.
+8. make_curve (wake) - Provides an option to enable or disable a curved trailing edge.
 <table align="center">
   <tr>
     <td align="center">
@@ -158,7 +190,7 @@ The trailing edge region where this bias is applied is controlled using "fractio
   </tr>
 </table>
 
-7. wake region dimensions - Controls the region of refinement in the wake region (trapezium-shaped).
+9. wake region dimensions - Controls the region of refinement in the wake region (trapezium-shaped).
 <table align="center">
   <tr>
     <td align="center">
@@ -172,7 +204,7 @@ The trailing edge region where this bias is applied is controlled using "fractio
   </tr>
 </table>
 
-8. wake region mesh size - Controls the triangular element size in the wake region.
+10. wake region mesh size - Controls the triangular element size in the wake region.
 <table align="center">
   <tr>
     <td align="center">
@@ -187,7 +219,7 @@ The trailing edge region where this bias is applied is controlled using "fractio
 </table>
 Notes: No. of elements for wake_size = 0.02 is 222,346 and for wake_size = 0.01 is 354,396.
 
-9. Farfield mesh size - Controls the mesh sizing for filling remaining region.
+11. Farfield mesh size - Controls the mesh sizing for filling remaining region.
 <table align="center">
   <tr>
     <td align="center">
@@ -201,5 +233,5 @@ Notes: No. of elements for wake_size = 0.02 is 222,346 and for wake_size = 0.01 
   </tr>
 </table>
 
-10. Fafield mesh grading - Seems to have no effect, more investigation is required. 
+11. Fafield mesh grading - Seems to have no effect, more investigation is required. 
 
