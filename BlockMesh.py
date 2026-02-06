@@ -7,19 +7,61 @@ import numpy as np
 from scipy.interpolate import splprep
 
 class BlockMesh:
+    """Container class for block-structured 2D meshes.
+
+    The mesh is represented as a list of *U-lines* (lines in u-direction), where
+    each U-line is a list of `(x, y)` tuples. V-lines (v-direction) are derived
+    by collecting points at constant i-index across all U-lines.
+    """
     def __init__(self):
+        """Initialize an empty mesh container.
+
+        Creates an empty list of U-lines. Each U-line is expected to be a list of
+        `(x, y)` tuples of equal length across the mesh once fully defined.
+        """
         self.ULines = list()
 
     def addLine(self, line):
+        """Append a U-line to the mesh.
+
+        :param line: list of `(x, y)` tuples describing a polyline.
+        :type line: list[tuple[float, float]]
+        :return: None
+        :rtype: None
+        """
         # line is a list of (x, y) tuples
         self.ULines.append(line)    
+    
     def setUlines(self, ulines):
+        """Replace the current U-lines by a new list.
+
+        :param ulines: list of U-lines; each U-line is a list of `(x, y)` tuples.
+        :type ulines: list[list[tuple[float, float]]]
+        :return: None
+        :rtype: None
+        """
         self.ULines = ulines
 
     def extrudeLine_cell_thickness(self, line, normals,
                                 cell_thickness=0.04, growth=1.05,
                                 extrusion_distance=0.4):
 
+        """Extrude a polyline along supplied normals using geometric layer growth.
+        
+        :param line: base polyline as list of `(x, y)` tuples.
+        :type line: list[tuple[float, float]]
+        :param normals: normal vectors for each point in `line`.
+            Must have shape `(n, 2)` and correspond pointwise to `line`.
+        :type normals: array-like
+        :param cell_thickness: first-layer thickness (t).
+        :type cell_thickness: float, optional
+        :param growth: geometric growth ratio between successive layers (r).
+        :type growth: float, optional
+        :param extrusion_distance: total extrusion distance / boundary-layer height (L).
+        :type extrusion_distance: float, optional
+        :return: None
+        :rtype: None
+        """
         # ensure float64 during all math
         pts     = np.asarray(line,    dtype=np.float64)   # (n,2)
         normals = np.asarray(normals, dtype=np.float64)   # (n,2)
@@ -44,32 +86,57 @@ class BlockMesh:
             self.addLine(poly)            # addLine stays unchanged (expects tuples)
 
     def getNodeCoo(self, node):
+        """Return the coordinate of a node addressed by structured indices.
+
+        The node is addressed by `(I, J)` where:
+        - `I` is the index along a U-line (u-direction),
+        - `J` is the index of the U-line (v-direction).
+
+        :param node: node indices as `(I, J)`.
+        :type node: tuple[int, int] | list[int]
+        :return: node coordinate as NumPy array `[x, y]`.
+        :rtype: np.ndarray
+        """
         I, J = node[0], node[1]
         uline = self.getULines()[J]
         point = uline[I]
         return np.array(point)
 
     def setNodeCoo(self, node, new_pos):
+        """Set the coordinate of a node addressed by structured indices.
+
+        :param node: node indices as `(I, J)`.
+        :type node: tuple[int, int] | list[int]
+        :param new_pos: new coordinate as `(x, y)` or array-like of length 2.
+        :type new_pos: tuple[float, float] | np.ndarray | list[float]
+        :return: None
+        :rtype: None
+        """
         I, J = node[0], node[1]
         uline = self.getULines()[J]
         uline[I] = new_pos
         return
 
     def makeSubBlock(self, ij=[]):
-        """
-        Create and return a new BlockMesh that corresponds to the sub-block
-        defined by indices ij = [istart, iend, jstart, jend].
+        """Create a sub-block defined by index bounds and return it as a new mesh.
 
-        The new block's boundaries are taken from this mesh:
-            - lower: U-line at jstart, columns istart..iend
-            - upper: U-line at jend,   columns istart..iend
-            - left:  V-line at istart, rows    jstart..jend
-            - right: V-line at iend,   rows    jstart..jend
+        The sub-block is defined by `ij = [istart, iend, jstart, jend]` and is
+        extracted from the current block using its boundary curves:
+            - lower boundary: U-line at `jstart`, columns `istart..iend`
+            - upper boundary: U-line at `jend`,   columns `istart..iend`
+            - left boundary:  V-line at `istart`, rows    `jstart..jend`
+            - right boundary: V-line at `iend`,   rows    `jstart..jend`
 
-        The interior is generated with transfinite interpolation using those
-        four boundaries, so the sub-block has exactly
-            (iend - istart + 1) points along u and
-            (jend - jstart + 1) points along v.
+        The interior of the returned sub-block is generated via transfinite
+        interpolation using these four boundaries (see :meth:`transfinite`).
+        The resulting mesh has exactly:
+            `(iend - istart + 1)` points in u-direction and
+            `(jend - jstart + 1)` points in v-direction.
+
+        :param ij: index bounds `[istart, iend, jstart, jend]`.
+        :type ij: list[int]
+        :return: new :class:`BlockMesh` instance corresponding to the sub-block.
+        :rtype: BlockMesh
         """
 
         istart, iend, jstart, jend = ij
@@ -95,13 +162,16 @@ class BlockMesh:
 
     
     def extrudeLine_spacing(self, line, lengths, direction):
-        """
-        Extrude a line in a fixed custom normal direction using specified spacing.
+        """Extrude a polyline in a specified direction using explicit spacing.
 
-        Args:
-            line: List of (x, y) tuples representing the original line.
-            spacing: List of offsets (floats) from the original line.
-            normal_direction: Tuple (nx, ny) specifying the direction to extrude in.
+        :param line: base polyline as list of `(x, y)` tuples.
+        :type line: list[tuple[float, float]]
+        :param lengths: list/array of layer thicknesses (not cumulative).
+        :type lengths: array-like
+        :param direction: extrusion direction vector `(nx, ny)`.
+        :type direction: tuple[float, float] | list[float] | np.ndarray
+        :return: None
+        :rtype: None
         """
         x, y = list(zip(*line))
         x = np.array(x)
@@ -122,7 +192,24 @@ class BlockMesh:
     
     @staticmethod
     def spacing_cell_thickness(cell_thickness=0.04, growth=1.1, extrusion_distance=0.4):
+        """Compute cumulative layer offsets using geometric growth.
 
+        Generates a list of cumulative offsets starting at 0, with the first layer
+        thickness equal to `cell_thickness` and subsequent thicknesses growing by
+        the constant ratio `growth` until reaching (or slightly exceeding)
+        `extrusion_distance`.
+
+        :param cell_thickness: first-layer thickness (t).
+        :type cell_thickness: float, optional
+        :param growth: geometric growth ratio (r).
+        :type growth: float, optional
+        :param extrusion_distance: total extrusion distance / boundary-layer height (L).
+        :type extrusion_distance: float, optional
+        :return: tuple `(spacing, length)` where
+            - `spacing` is a list of cumulative offsets including 0.0,
+            - `length` is the sum of the generated cumulative offsets.
+        :rtype: tuple[list[float], float]
+        """
         # add cell thickness of first layer
         spacing = [cell_thickness]
         N = np.log(1 + (growth - 1) * extrusion_distance / cell_thickness) / np.log(growth)
@@ -137,10 +224,24 @@ class BlockMesh:
         return spacing, length
     @staticmethod
     def unit_vector(vector):
-        """ Returns the unit vector of the vector.  """
+        """Return the unit vector of the given vector.
+
+        :param vector: input vector.
+        :type vector: np.ndarray
+        :return: normalized vector with unit Euclidean norm.
+        :rtype: np.ndarray
+        """
         return vector / np.linalg.norm(vector)
 
     def getVLines(self):
+        """Return all V-lines derived from the stored U-lines.
+
+        A V-line is constructed by collecting points with the same `I` index
+        across all U-lines.
+
+        :return: list of V-lines, each a list of `(x, y)` tuples.
+        :rtype: list[list[tuple[float, float]]]
+        """
         vlines = list()
         U, V = self.getDivUV()
 
@@ -156,14 +257,36 @@ class BlockMesh:
         return vlines
 
     def getDivUV(self):
+        """Return the number of divisions in u and v directions.
+
+        For a structured grid, if there are `U+1` points along each U-line and
+        `V+1` U-lines total, then the number of divisions is `(U, V)`.
+
+        :return: `(U, V)` where U is divisions in u-direction and V in v-direction.
+        :rtype: tuple[int, int]
+        """
         u = len(self.getULines()[0]) - 1
         v = len(self.getULines()) - 1
         return u, v
 
     def getULines(self):
+        """Return the stored U-lines.
+
+        :return: list of U-lines.
+        :rtype: list[list[tuple[float, float]]]
+        """
         return self.ULines
 
     def getLine(self, number=0, direction='u'):
+        """Return a specific line in u- or v-direction.
+
+        :param number: index of the requested line.
+        :type number: int, optional
+        :param direction: `'u'` for U-lines or `'v'` for V-lines.
+        :type direction: str, optional
+        :return: requested line as list of `(x, y)` tuples.
+        :rtype: list[tuple[float, float]]
+        """
         if direction.lower() == 'u':
             lines = self.getULines()
         if direction.lower() == 'v':
@@ -171,8 +294,13 @@ class BlockMesh:
         return lines[number]
 
     def transfinite(self, boundary=[], ij=[]):
-        """Make a transfinite interpolation.
+        """Generate interior nodes by transfinite interpolation (TFI).
 
+        This method fills a structured block from four boundary curves (lower,
+        upper, left, right). Boundaries can be provided explicitly via `boundary`
+        or extracted from the current mesh via `ij`.
+
+        Reference:
         http://en.wikipedia.org/wiki/Transfinite_interpolation
 
                        upper
@@ -185,8 +313,14 @@ class BlockMesh:
                 --------------------
                        lower
 
-        Example input for the lower boundary:
-            lower = [(0.0, 0.0), (0.1, 0.3),  (0.5, 0.4)]
+        :param boundary: optional list `[lower, upper, left, right]`, where each
+            entry is a list of `(x, y)` tuples.
+        :type boundary: list[list[tuple[float, float]]], optional
+        :param ij: optional subrange indices `[istart, iend, jstart, jend]` used to
+            extract boundaries from the current mesh.
+        :type ij: list[int], optional
+        :return: None
+        :rtype: None
         """
 
         if boundary:
@@ -275,6 +409,16 @@ class BlockMesh:
 
     @staticmethod
     def makeUfromV(vlines):
+        """Convert a list of V-lines into a list of U-lines.
+
+        This is a helper to switch the internal representation after generating
+        nodes in V-line order.
+
+        :param vlines: list of V-lines.
+        :type vlines: list[list[tuple[float, float]]]
+        :return: list of U-lines.
+        :rtype: list[list[tuple[float, float]]]
+        """
         ulines = list()
         uline = list()
         for i in range(len(vlines[0])):

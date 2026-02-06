@@ -6,11 +6,27 @@ GitHub: https://github.com/chiefenne/PyAero
 from scipy import spatial
 import numpy as np
 class Connect:
+    """Connectivity and vertex utilities for block-structured meshes.
+
+    This helper class provides routines to:
+    - build cell connectivity (quad elements) for a :class:`BlockMesh`,
+    - extract a flattened vertex list from one or more blocks,
+    - detect and merge near-duplicate vertices using a KD-tree, and
+    - assemble multiple blocks (and optional TRI3 patches) into a single,
+      globally connected mesh with compact node numbering.
+
+    """
     def __init__(self):
         pass
 
     def getConnectivity(self, block):
+        """Generate quad-cell connectivity for a structured :class:`BlockMesh`.
 
+        :param block: block from which to generate connectivity.
+        :type block: BlockMesh
+        :return: list of quad cells as tuples of four vertex indices.
+        :rtype: list[tuple[int, int, int, int]]
+        """
         connectivity = list()
 
         U, V = block.getDivUV()
@@ -26,14 +42,16 @@ class Connect:
         return connectivity
 
     def getVertices(self, block):
-        """Make a list of point tuples from a BlockMesh object
+        """Flatten a :class:`BlockMesh` into a global vertex list for that block.
 
-        Args:
-            block (BlockMesh): BlockMesh object
+        Vertices are returned in the same order used by :meth:`getConnectivity`,
+        i.e., concatenating all U-lines in sequence.
 
-        Returns:
-            list: list of point tuples
-                  # [(x1, y1), (x2, y2), (x3, y3), ... , (xn, yn)]
+        :param block: block to extract vertices from.
+        :type block: BlockMesh
+        :return: list of `(x, y)` vertex tuples:
+            `[(x1, y1), (x2, y2), ..., (xn, yn)]`.
+        :rtype: list[tuple[float, float]]
         """
         vertices = list()
         for uline in block.getULines():
@@ -41,27 +59,38 @@ class Connect:
         return vertices
 
     def getNearestNeighboursPairs(self, vertices, radius=1.e-8):
+        """Find pairs of vertices within a given distance tolerance.
+
+        :param vertices: vertex coordinates.
+        :type vertices: array-like of shape (N, 2)
+        :param radius: distance tolerance used to detect duplicates.
+        :type radius: float, optional
+        :return: set of index pairs within the tolerance.
+        :rtype: set[tuple[int, int]]
+        """
         tree = spatial.cKDTree(vertices)
         pairs = tree.query_pairs(radius, p=2., eps=0)
         return pairs
 
     def getNearestNeighbours(self, vertices, neighbours, radius=1.e-8):
-        """Get the nearest neighbours to each vertex in a list of vertices
-        uses Scipy kd-tree for quick nearest-neighbor lookup
+        """Map each vertex to indices of neighbour points within a radius.
 
-        Args:
-            vertices (list of tuples): Vertices for which nearest neighbours
-                                       should be searched
-            neighbours (list of tuples): These are the neighbours which
-                                         are being searched
-            radius (float, optional): Search neighbours within this radius
+        Builds a KD-tree on `neighbours` and for each vertex in `vertices`
+        finds all neighbour indices within `radius` using `query_ball_point`.
 
-        Returns:
-            vertex_and_neighbours(dictionary): Contains vertices searched
-                                               as key and a list of nearest
-                                               neighbours as values
+        This is typically used to identify near-duplicate vertices across
+        different blocks when assembling a global mesh.
+
+        :param vertices: query points (vertices to be searched).
+        :type vertices: array-like of shape (N, 2)
+        :param neighbours: candidate neighbour points (searched set).
+        :type neighbours: array-like of shape (M, 2)
+        :param radius: search tolerance (Euclidean distance).
+        :type radius: float, optional
+        :return: dictionary mapping `vertex_id -> [neighbour_ids]`, where
+            the neighbour ids are indices into the `neighbours` array.
+        :rtype: dict[int, list[int]]
         """
-
         # setup k-dimensional tree
         tree = spatial.cKDTree(neighbours)
 
@@ -73,7 +102,18 @@ class Connect:
         return vertex_and_neighbours
     
     def shiftConnectivity(self, connectivity, shift):
+        """Shift connectivity indices by a constant offset.
 
+        Useful when concatenating multiple blocks into a single global
+        connectivity array.
+
+        :param connectivity: list of cells; each cell is an iterable of indices.
+        :type connectivity: list[tuple[int, ...]] | list[list[int]]
+        :param shift: integer offset added to every index.
+        :type shift: int
+        :return: shifted connectivity in the same cell topology.
+        :rtype: list[list[int]] | list[tuple[int, ...]]
+        """
         if shift == 0:
             return connectivity
 
@@ -85,7 +125,28 @@ class Connect:
         return connectivity_shifted
     
     def connectAllBlocks(self, blocks, trias):
+        """Assemble multiple blocks into a single connected mesh.
 
+        All vertices and cell connectivities from the provided blocks are
+        concatenated into a global mesh. Near-duplicate vertices are detected
+        using a KD-tree search and merged within a fixed tolerance. The final
+        vertex list and connectivity are compacted to remove unused nodes.
+
+        Optional triangulated patches (TRI3 elements) can be appended to the
+        mesh and are included in the merging and renumbering process.
+
+        :param blocks: list of structured block meshes.
+        :type blocks: list[BlockMesh]
+        :param trias: list of triangulated patches. Each entry must contain
+            the keys ``"P"`` (point coordinates of shape ``(N,2)`` or ``(N,3)``)
+            and ``"connectivity"`` (integer array of shape ``(M,3)``).
+        :type trias: list[dict]
+        :return: tuple ``(vertices, connectivity)`` where
+            ``vertices`` is the list of unique vertex coordinates and
+            ``connectivity`` is the global cell connectivity.
+        :rtype: tuple[list[tuple[float, float]], list[list[int]]]
+        :raises ValueError: if triangulated patch data has invalid shape.
+        """
         # compile global vertex list and cell connectivity from all blocks
         vertices = list()
         connectivity = list()

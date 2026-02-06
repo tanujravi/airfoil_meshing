@@ -2,16 +2,29 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline  # needs SciPy
 class LineDistribution:
+    """Utility class for distributing and generating polylines.
+
+    Provides static helper methods for:
+    - plotting polylines,
+    - redistributing points based on a reference line,
+    - generating circular arcs with reference-based spacing,
+    - constructing arc-like curves using splines or Bézier representations.
+    """
     @staticmethod    
     def plot_lines(lines, colors=None, markers=None, labels=None):
-        """
-        Plot multiple lines, each defined by a list of (x, y) points.
+        """Plot multiple polylines defined by point coordinates.
 
-        Parameters:
-            lines (list of list of tuple): List of lines, where each line is a list of (x, y) points.
-            colors (list of str): List of colors for each line.
-            markers (list of str): List of marker styles for each line.
-            labels (list of str): List of labels for each line.
+        :param lines: list of lines, where each line is a list of ``(x, y)`` points.
+        :type lines: list[list[tuple[float, float]]]
+        :param colors: list of colors for each line.
+        :type colors: list[str], optional
+        :param markers: list of marker styles for each line.
+        :type markers: list[str], optional
+        :param labels: list of labels for each line.
+        :type labels: list[str], optional
+        :raises ValueError: if ``lines`` is empty.
+        :return: None
+        :rtype: None
         """
         if not lines:
             raise ValueError("No lines to plot.")
@@ -40,17 +53,21 @@ class LineDistribution:
     
     @staticmethod
     def divide_line_by_reference(start_point, end_point, line_ref):
-        """
-        Create a new line from start_point to end_point,
-        divided in the same proportional segments as line_ref.
+        """Create a line divided according to a reference line's spacing.
 
-        Parameters:
-            start_point (tuple): (x, y) starting point of the new line.
-            end_point (tuple): (x, y) ending point of the new line.
-            line_ref (list of tuple): reference line to copy proportions from.
+        A new polyline from ``start_point`` to ``end_point`` is generated such
+        that the relative segment lengths match those of ``line_ref``.
 
-        Returns:
-            list of tuple: New line points in the same format as line_ref.
+        :param start_point: starting point of the new line.
+        :type start_point: tuple[float, float]
+        :param end_point: ending point of the new line.
+        :type end_point: tuple[float, float]
+        :param line_ref: reference polyline defining spacing proportions.
+        :type line_ref: list[tuple[float, float]]
+        :return: new polyline with the same number of points as ``line_ref``.
+        :rtype: list[tuple[float, float]]
+        :raises ValueError: if the reference line has zero length or
+            if ``start_point`` and ``end_point`` coincide.
         """
 
         # Convert reference line to numpy array
@@ -82,66 +99,29 @@ class LineDistribution:
 
 
     @staticmethod
-    def divide_line(start, end, n):
-        """
-        Divide the line between `start` and `end` into `n` equal segments (n+1 points total).
-
-        Parameters:
-            start: tuple (x0, y0)
-            end: tuple (x1, y1)
-            n: int, number of segments
-
-        Returns:
-            List of (x, y) tuples including both start and end points.
-        """
-        x_vals = np.linspace(start[0], end[0], n + 1)
-        y_vals = np.linspace(start[1], end[1], n + 1)
-        return list(zip(x_vals, y_vals))
-    
-    @staticmethod
-    def parallel_polyline_through_point(line, through):
-        """
-        Parallel to a straight (colinear) polyline that passes through `through`.
-        Returns a list of shifted points.
-        """
-        P = np.asarray(line, float)
-        p0, p1 = P[0], P[-1]
-        q = np.array(through, float)
-
-        t = p1 - p0
-        t = t / np.linalg.norm(t)
-        n = np.array([-t[1], t[0]])
-
-        d = np.dot(q - p0, n)
-        shift = d * n
-
-        return [tuple(pt + shift) for pt in P]
-    
-    
-    @staticmethod
     def arc_with_ref_spacing(p1, p2, ref_polyline, radius, direction="ccw", long_arc=False):
+        """Generate a circular arc with spacing taken from a reference polyline.
+
+        The arc connects ``p1`` to ``p2`` on a circle of given ``radius``.
+        The number of points and their relative spacing are taken from
+        ``ref_polyline``.
+
+        :param p1: starting point of the arc.
+        :type p1: tuple[float, float]
+        :param p2: ending point of the arc.
+        :type p2: tuple[float, float]
+        :param ref_polyline: reference polyline defining spacing proportions.
+        :type ref_polyline: list[tuple[float, float]]
+        :param radius: circle radius (must satisfy ``radius >= |p2-p1|/2``).
+        :type radius: float
+        :param direction: arc direction, ``"ccw"`` or ``"cw"``.
+        :type direction: str, optional
+        :param long_arc: if ``True``, use the major arc; otherwise the minor arc.
+        :type long_arc: bool, optional
+        :return: polyline points on the circular arc.
+        :rtype: list[tuple[float, float]]
+        :raises ValueError: if inputs are invalid or geometry is infeasible.
         """
-        Return points on a circular arc of given `radius` passing through p1 -> p2,
-        with spacing proportions matching `ref_polyline`. Includes both endpoints.
-
-        Parameters
-        ----------
-        p1, p2 : (x, y)
-            Endpoints of the chord.
-        ref_polyline : array-like of shape (N, 2)
-            Reference polyline whose segment-length fractions define the spacing.
-        radius : float
-            Circle radius (must satisfy radius >= ||p2 - p1|| / 2).
-        direction : {"ccw", "cw"}
-            Orientation along the arc from p1 to p2.
-        long_arc : bool
-            False -> minor arc (<= π), True -> major arc (> π).
-
-        Returns
-        -------
-        list[(x, y)] of length N
-        """
-
         ref = np.asarray(ref_polyline, float)
         if ref.ndim != 2 or ref.shape[1] != 2:
             raise ValueError("ref_polyline must be an array/list of (x, y) points")
@@ -227,45 +207,6 @@ class LineDistribution:
         ys = C[1] + R * np.sin(angles)
         return [tuple(pt) for pt in np.column_stack([xs, ys])]
 
- 
-    @staticmethod
-    def line_intersection(
-        p1, p2,   # line 1 through p1->p2
-        p3, p4,   # line 2 through p3->p4
-    ) :
-        
-        """
-        Returns the intersection point of the two lines (or segments if as_segment=True).
-        If lines are parallel (no unique intersection) returns None.
-        If segments are collinear and overlapping, returns None (not a single point).
-
-        Coordinates are floats; use `eps` to control numeric tolerance.
-        """
-
-        def _cross(ax: float, ay: float, bx: float, by: float) -> float:
-            return ax*by - ay*bx
-
-        x1,y1 = p1; x2,y2 = p2
-        x3,y3 = p3; x4,y4 = p4
-
-        r = (x2 - x1, y2 - y1)
-        s = (x4 - x3, y4 - y3)
-
-        rxs = _cross(r[0], r[1], s[0], s[1])
-        q_p = (x3 - x1, y3 - y1)
-
-
-        # Unique intersection exists for infinite lines
-        t = _cross(q_p[0], q_p[1], s[0], s[1]) / rxs
-
-        # If treating as segments, require the intersection to lie within both [0,1]
-
-        ix = x1 + t * r[0]
-        iy = y1 + t * r[1]
-        return (ix, iy)
-
-
-
     @staticmethod
     def dist_arc_with_ref_spacing(
         p1, p2,
@@ -275,16 +216,31 @@ class LineDistribution:
         alpha=1.0,          # 0 = uniform, 1 = ref-based
         eps: float = 1e-6,
     ):
-        """
-        Return points on the circular arc from p1 to p2 with spacing given by a
-        blend between uniform spacing and the cumulative-length fractions of
-        `ref_polyline`. Includes both endpoints.
+        """Generate a circular arc with blended spacing control.
 
-        - `center` and `radius` define the circle.
-        - `direction` is "ccw" or "cw" for the sweep from p1 to p2.
-        - `alpha` in [0, 1]: 0 → purely uniform spacing, 1 → purely ref-based spacing.
-        - If ref_polyline has <2 points or zero total length, fallback to uniform spacing.
-        """
+        Spacing is computed as a blend between uniform spacing and spacing
+        derived from the cumulative arc-length of ``ref_polyline``.
+
+        :param p1: starting point of the arc.
+        :type p1: tuple[float, float]
+        :param p2: ending point of the arc.
+        :type p2: tuple[float, float]
+        :param center: center of the circle.
+        :type center: tuple[float, float]
+        :param radius: circle radius.
+        :type radius: float
+        :param ref_polyline: reference polyline defining spacing proportions.
+        :type ref_polyline: list[tuple[float, float]]
+        :param direction: arc direction, ``"ccw"`` or ``"cw"``.
+        :type direction: str, optional
+        :param alpha: blending factor (0 = uniform, 1 = reference-based).
+        :type alpha: float, optional
+        :param eps: numerical tolerance.
+        :type eps: float, optional
+        :return: polyline points on the circular arc.
+        :rtype: list[tuple[float, float]]
+        :raises ValueError: if inputs are invalid.
+        """ 
         # --- validate / coerce inputs ---
         C = np.asarray(center, dtype=float)
         p1 = np.asarray(p1, dtype=float)
@@ -367,16 +323,27 @@ class LineDistribution:
         ref_polyline,
         eps: float = 1e-9,
     ):
-        """
-        Build a circular polyline on the circle (center, radius) such that:
+        """Generate a circular arc using spline-based normals.
 
-        - First point is exactly p1
-        - Last point is exactly p2
-        - For interior points, we fit a spline through ref_polyline, compute
-          smooth tangents, turn them into normals, and intersect those normals
-          with the circle.
+        A cubic spline is fitted through ``ref_polyline`` to compute smooth
+        tangents and normals. Interior points are obtained by intersecting
+        these normals with the target circle.
 
-        The number of output points == len(ref_polyline).
+        :param p1: starting point of the arc.
+        :type p1: tuple[float, float]
+        :param p2: ending point of the arc.
+        :type p2: tuple[float, float]
+        :param center: center of the circle.
+        :type center: tuple[float, float]
+        :param radius: circle radius.
+        :type radius: float
+        :param ref_polyline: reference polyline defining number of points.
+        :type ref_polyline: list[tuple[float, float]]
+        :param eps: numerical tolerance.
+        :type eps: float, optional
+        :return: polyline points on the circular arc.
+        :rtype: list[tuple[float, float]]
+        :raises ValueError: if geometry or inputs are invalid.
         """
         C = np.asarray(center, dtype=float)
         R = float(radius)
@@ -481,112 +448,31 @@ class LineDistribution:
             result[i] = (float(Q[0]), float(Q[1]))
 
         return result
-    
-    @staticmethod    
-    def circle_center_radius_from_3pts(p1, p2, p3, eps: float = 1e-12):
-        """
-        Return (center_x, center_y), radius of the unique circle through three non-collinear points.
-        Raises ValueError if points are (near-)collinear.
-        """
-        x1, y1 = map(float, p1)
-        x2, y2 = map(float, p2)
-        x3, y3 = map(float, p3)
-
-        # Linear system for center (perpendicular bisectors)
-        A = np.array([[2*(x2 - x1), 2*(y2 - y1)],
-                    [2*(x3 - x1), 2*(y3 - y1)]], dtype=float)
-        b = np.array([(x2**2 + y2**2) - (x1**2 + y1**2),
-                    (x3**2 + y3**2) - (x1**2 + y1**2)], dtype=float)
-
-        det = np.linalg.det(A)
-        if abs(det) < eps:
-            raise ValueError("Points are collinear or nearly collinear; no unique circle.")
-
-        cx, cy = np.linalg.solve(A, b)
-        R = float(np.hypot(x1 - cx, y1 - cy))
-        return (float(cx), float(cy)), R
         
-    @staticmethod
-    def dist_arc_with_uniform_spacing(
-        p1, p2,
-        center, radius,
-        segments,          # mandatory: number of equal-length segments (>=1)
-        direction="ccw",
-        eps: float = 1e-6
-    ):
-        """
-        Return points on the circular arc from p1 to p2 with uniform arc-length spacing.
-        Includes both endpoints. Uses exactly `segments + 1` points.
-
-        Args:
-            p1, p2: endpoints on the circle (x, y)
-            center: circle center (x, y)
-            radius: circle radius (>0)
-            segments: number of equal-length segments along the arc (>=1)
-            direction: "ccw" or "cw" sweep from p1 to p2
-            eps: tolerance
-        """
-        # --- validate / coerce inputs ---
-        if segments is None:
-            raise ValueError("segments is required and must be >= 1")
-        if int(segments) < 1:
-            raise ValueError("segments must be an integer >= 1")
-        segments = int(segments)
-
-        C = np.asarray(center, dtype=float)
-        p1 = np.asarray(p1, dtype=float)
-        p2 = np.asarray(p2, dtype=float)
-        R = float(radius)
-        if R <= 0:
-            raise ValueError("radius must be positive")
-
-        # --- angles ---
-        a1 = np.arctan2(p1[1] - C[1], p1[0] - C[0])
-        a2 = np.arctan2(p2[1] - C[1], p2[0] - C[0])
-
-        two_pi = 2.0 * np.pi
-        delta_ccw = (a2 - a1) % two_pi      # [0, 2π)
-        delta_cw  = -((a1 - a2) % two_pi)   # (-2π, 0]
-        if direction.lower() == "ccw":
-            delta = delta_ccw
-        elif direction.lower() == "cw":
-            delta = delta_cw
-        else:
-            raise ValueError('direction must be "ccw" or "cw"')
-
-        # Degenerate sweep → just endpoints
-        if abs(delta) <= eps:
-            return [tuple(p1), tuple(p2)]
-
-        # --- uniform fractions and points ---
-        n_pts = segments + 1
-        t = np.linspace(0.0, 1.0, n_pts)
-        angles = a1 + delta * t
-        xs = C[0] + R * np.cos(angles)
-        ys = C[1] + R * np.sin(angles)
-
-        polyLine = [tuple(pt) for pt in np.column_stack([xs, ys])]
-        polyLine[0]  = tuple(p1)  # pin exact endpoints
-        polyLine[-1] = tuple(p2)
-        return polyLine
-
       
     @staticmethod
     def closed_left_U(bottom_right, vert_len, horiz_len, ref_polyline=None, n_segments=100):
-        """
-        Build a CLOSED left-sided U with a right closing edge, starting at bottom_right:
-        1) go left by horiz_len (bottom straight),
-        2) semicircle of diameter vert_len (bottom->top),
-        3) go right by horiz_len (top straight to top_right),
-        4) go straight down to bottom_right (right edge).
+        """Construct a closed left-sided U-shaped polyline.
 
-        Spacing:
-        - If ref_polyline is provided: follow its arc-length fractions.
-        - Else: uniform fractions with n_segments segments (returns n_segments+1 points).
+        The shape consists of:
+        - a bottom horizontal segment,
+        - a left semicircle,
+        - a top horizontal segment,
+        - a vertical closing edge on the right.
 
-        Returns
-        -------
-        list[(x, y)]  # closed: first point == last point
+        :param bottom_right: bottom-right corner of the shape.
+        :type bottom_right: tuple[float, float]
+        :param vert_len: vertical height of the U.
+        :type vert_len: float
+        :param horiz_len: horizontal length of the top and bottom segments.
+        :type horiz_len: float
+        :param ref_polyline: optional reference polyline for spacing control.
+        :type ref_polyline: list[tuple[float, float]], optional
+        :param n_segments: number of segments if ``ref_polyline`` is not provided.
+        :type n_segments: int, optional
+        :return: closed polyline where first and last points coincide.
+        :rtype: list[tuple[float, float]]
+        :raises ValueError: if geometric parameters are invalid.
         """
         BR = np.asarray(bottom_right, float)
         H  = float(vert_len)
@@ -662,13 +548,35 @@ class LineDistribution:
         handle_scale: float = 1.0,
         eps: float = 1e-12,
     ):
-        """
-        Construct an arc-like cubic Bézier curve between two points with prescribed
-        tangent directions at the endpoints, sampled ~uniformly in arc length.
+        """Construct an arc-like cubic Bézier curve with prescribed tangents.
 
-        Returns a polyline: list of (x, y) tuples of length n_points.
-        """
+        A cubic Bézier curve is defined between ``p1`` and ``p2`` using tangent
+        directions inferred from the point pairs ``(t1_pA, t1_pB)`` and
+        ``(t2_pA, t2_pB)``. The curve is reparameterized to obtain approximately
+        uniform arc-length spacing.
 
+        :param p1: starting point of the curve.
+        :type p1: tuple[float, float]
+        :param t1_pA: first point defining tangent direction at ``p1``.
+        :type t1_pA: tuple[float, float]
+        :param t1_pB: second point defining tangent direction at ``p1``.
+        :type t1_pB: tuple[float, float]
+        :param p2: ending point of the curve.
+        :type p2: tuple[float, float]
+        :param t2_pA: first point defining tangent direction at ``p2``.
+        :type t2_pA: tuple[float, float]
+        :param t2_pB: second point defining tangent direction at ``p2``.
+        :type t2_pB: tuple[float, float]
+        :param n_points: number of output points.
+        :type n_points: int, optional
+        :param handle_scale: scaling factor for Bézier control handles.
+        :type handle_scale: float, optional
+        :param eps: numerical tolerance.
+        :type eps: float, optional
+        :return: arc-length reparameterized Bézier polyline.
+        :rtype: list[tuple[float, float]]
+        :raises ValueError: if tangents or geometry are degenerate.
+        """
         p1 = np.asarray(p1, dtype=float)
         p2 = np.asarray(p2, dtype=float)
         t1_pA = np.asarray(t1_pA, dtype=float)
@@ -764,151 +672,3 @@ class LineDistribution:
         pts_uniform[-1] = (float(P3[0]), float(P3[1]))
 
         return pts_uniform
-
-
-    @staticmethod
-    def arc_like_spline_from_2pts_2tangents_ref_spacing(
-        p1, t1_pA, t1_pB,
-        p2, t2_pA, t2_pB,
-        ref_polyline,
-        handle_scale: float = 1.0,
-        eps: float = 1e-12,
-    ):
-        """
-        Construct an arc-like cubic Bézier curve between two points with prescribed
-        tangent directions at the endpoints, with point spacing proportional to a
-        reference polyline.
-
-        Inputs
-        ------
-        p1 : (x, y) start point on the curve
-        t1_pA, t1_pB : two points defining the tangent line at p1
-        p2 : (x, y) end point on the curve
-        t2_pA, t2_pB : two points defining the tangent line at p2
-        ref_polyline : list/array of (x, y) points; its chord-length fractions
-                    determine the spacing along the Bézier curve
-        handle_scale : scales handle length; >1 more curved, <1 flatter
-        eps : small tolerance
-
-        Returns
-        -------
-        pts : list[(x, y)] of length len(ref_polyline),
-            distributed along the Bézier with spacing proportional
-            to the reference polyline's segment lengths.
-        """
-
-        # --- basic checks + array conversion ---
-        p1 = np.asarray(p1, dtype=float)
-        p2 = np.asarray(p2, dtype=float)
-        t1_pA = np.asarray(t1_pA, dtype=float)
-        t1_pB = np.asarray(t1_pB, dtype=float)
-        t2_pA = np.asarray(t2_pA, dtype=float)
-        t2_pB = np.asarray(t2_pB, dtype=float)
-
-        ref_polyline = np.asarray(ref_polyline, dtype=float)
-        if ref_polyline.ndim != 2 or ref_polyline.shape[1] != 2:
-            raise ValueError("ref_polyline must be an array/list of (x, y) points.")
-        if ref_polyline.shape[0] < 2:
-            raise ValueError("ref_polyline must contain at least 2 points.")
-
-        n_points = ref_polyline.shape[0]
-
-        # --- tangent directions ---
-        t1 = t1_pB - t1_pA
-        t2 = t2_pB - t2_pA
-
-        n1 = np.linalg.norm(t1)
-        n2 = np.linalg.norm(t2)
-        if n1 < eps or n2 < eps:
-            raise ValueError("Tangent direction is degenerate (zero length).")
-
-        t1 /= n1
-        t2 /= n2
-
-        # --- chord + handle lengths ---
-        chord = p2 - p1
-        chord_len = np.linalg.norm(chord)
-        if chord_len < eps:
-            raise ValueError("Endpoints are too close or identical.")
-
-        base_handle_len = chord_len / 3.0
-        L1 = handle_scale * base_handle_len
-        L2 = handle_scale * base_handle_len
-
-        # --- Bézier control points ---
-        P0 = p1
-        P3 = p2
-        P1 = P0 + L1 * t1
-        P2 = P3 - L2 * t2
-
-        def bezier_eval(t):
-            """Evaluate cubic Bézier at array of t in [0,1]."""
-            t = np.asarray(t, dtype=float)
-            one_minus_t = 1.0 - t
-            B0 = one_minus_t**3
-            B1 = 3.0 * one_minus_t**2 * t
-            B2 = 3.0 * one_minus_t * t**2
-            B3 = t**3
-            return (
-                B0[:, None] * P0[None, :] +
-                B1[:, None] * P1[None, :] +
-                B2[:, None] * P2[None, :] +
-                B3[:, None] * P3[None, :]
-            )
-
-        # --- 1) build normalized arc-length s_ref from reference polyline ---
-        diffs_ref = np.diff(ref_polyline, axis=0)
-        seg_lens_ref = np.linalg.norm(diffs_ref, axis=1)
-        s_ref = np.concatenate(([0.0], np.cumsum(seg_lens_ref)))
-        total_len_ref = s_ref[-1]
-
-        if total_len_ref < eps:
-            # reference is effectively a point / degenerate line
-            return [tuple(p1)] * n_points
-
-        s_ref /= total_len_ref  # normalize to [0,1]
-        s_target = s_ref        # these are the fractions we want to mimic
-
-        # --- 2) build s(t) for Bézier via oversampling ---
-        n_sample = max(10 * n_points, 400)
-        t_sample = np.linspace(0.0, 1.0, n_sample)
-        pts_sample = bezier_eval(t_sample)
-
-        diffs = np.diff(pts_sample, axis=0)
-        seg_lens = np.linalg.norm(diffs, axis=1)
-        s = np.concatenate(([0.0], np.cumsum(seg_lens)))
-        total_len = s[-1]
-
-        if total_len < eps:
-            return [tuple(p1)] * n_points
-
-        s /= total_len
-
-        # --- 3) map each s_target to a parameter tau along the Bézier ---
-        pts_out = []
-        j = 0
-        for st in s_target:
-            # clamp to [0,1] in case of tiny numerical drift
-            st = min(max(st, 0.0), 1.0)
-
-            # find segment such that s[j] <= st <= s[j+1]
-            while j < len(s) - 2 and s[j+1] < st:
-                j += 1
-
-            s0, s1 = s[j], s[j+1]
-            t0, t1_ = t_sample[j], t_sample[j+1]
-
-            if s1 - s0 < eps:
-                tau = t0
-            else:
-                alpha = (st - s0) / (s1 - s0)
-                tau = t0 + alpha * (t1_ - t0)
-
-            pt = bezier_eval(np.array([tau]))[0]
-            pts_out.append((float(pt[0]), float(pt[1])))
-
-        # ensure exact endpoints
-        pts_out[0] = (float(P0[0]), float(P0[1]))
-        pts_out[-1] = (float(P3[0]), float(P3[1]))
-
-        return pts_out
