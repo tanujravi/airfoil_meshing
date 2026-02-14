@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline  # needs SciPy
+
+
 class LineDistribution:
     """Utility class for distributing and generating polylines.
 
@@ -10,7 +12,8 @@ class LineDistribution:
     - generating circular arcs with reference-based spacing,
     - constructing arc-like curves using splines or Bézier representations.
     """
-    @staticmethod    
+
+    @staticmethod
     def plot_lines(lines, colors=None, markers=None, labels=None):
         """Plot multiple polylines defined by point coordinates.
 
@@ -33,11 +36,13 @@ class LineDistribution:
 
         # Default styling
         if colors is None:
-            colors = ['blue', 'red', 'green', 'orange', 'purple', 'black'] * (num_lines // 6 + 1)
+            colors = ["blue", "red", "green", "orange", "purple", "black"] * (
+                num_lines // 6 + 1
+            )
         if markers is None:
-            markers = ['o', 's', '^', 'd', 'x', '*'] * (num_lines // 6 + 1)
+            markers = ["o", "s", "^", "d", "x", "*"] * (num_lines // 6 + 1)
         if labels is None:
-            labels = [f'Line {i+1}' for i in range(num_lines)]
+            labels = [f"Line {i+1}" for i in range(num_lines)]
 
         plt.figure()
         for i, line in enumerate(lines):
@@ -46,11 +51,11 @@ class LineDistribution:
             x, y = zip(*line)
             plt.plot(x, y, color=colors[i], marker=markers[i], label=labels[i])
 
-        #plt.gca().set_aspect('equal')
+        # plt.gca().set_aspect('equal')
         plt.grid(True)
         plt.legend()
         plt.show()
-    
+
     @staticmethod
     def divide_line_by_reference(start_point, end_point, line_ref):
         """Create a line divided according to a reference line's spacing.
@@ -79,7 +84,9 @@ class LineDistribution:
             raise ValueError("Reference line has zero length.")
 
         # Cumulative proportions (0 to 1, inclusive)
-        proportions = np.cumsum(np.insert(segment_lengths, 0, 0)) / np.sum(segment_lengths)
+        proportions = np.cumsum(np.insert(segment_lengths, 0, 0)) / np.sum(
+            segment_lengths
+        )
 
         # Direction vector from start to end
         start = np.array(start_point)
@@ -93,13 +100,16 @@ class LineDistribution:
         unit_direction = direction / total_length
 
         # Generate new points along the direction
-        new_points = [start + prop * total_length * unit_direction for prop in proportions]
+        new_points = [
+            start + prop * total_length * unit_direction for prop in proportions
+        ]
 
         return [tuple(pt) for pt in new_points]
 
-
     @staticmethod
-    def arc_with_ref_spacing(p1, p2, ref_polyline, radius, direction="ccw", long_arc=False):
+    def arc_with_ref_spacing(
+        p1, p2, ref_polyline, radius, direction="ccw", long_arc=False
+    ):
         """Generate a circular arc with spacing taken from a reference polyline.
 
         The arc connects ``p1`` to ``p2`` on a circle of given ``radius``.
@@ -147,16 +157,16 @@ class LineDistribution:
 
         # Centers on perpendicular bisector: M ± h n
         # with h = sqrt(R^2 - (d/2)^2)
-        h_sq = R*R - (0.5*d)*(0.5*d)
+        h_sq = R * R - (0.5 * d) * (0.5 * d)
         h = 0.0 if h_sq < 0 else float(np.sqrt(h_sq))
 
-        centers = [M + h*n]
+        centers = [M + h * n]
         if h > 1e-15:  # two distinct centers unless R == d/2
-            centers.append(M - h*n)
+            centers.append(M - h * n)
 
         def wrap_to_pi(a):
             """Wrap angle to (-pi, pi]."""
-            return (a + np.pi) % (2*np.pi) - np.pi
+            return (a + np.pi) % (2 * np.pi) - np.pi
 
         def delta_for_center(C, dir_ccw: bool):
             # angles of p1, p2 around center C
@@ -167,24 +177,24 @@ class LineDistribution:
             if dir_ccw:
                 # want CCW: positive delta; add 2π if needed
                 if d_raw <= 0:
-                    d_raw += 2*np.pi
+                    d_raw += 2 * np.pi
             else:
                 # want CW: negative delta; subtract 2π if needed
                 if d_raw >= 0:
-                    d_raw -= 2*np.pi
+                    d_raw -= 2 * np.pi
 
             # minor arc has |delta| <= π (within tolerance)
-            is_long = (abs(d_raw) > np.pi + 1e-12)
+            is_long = abs(d_raw) > np.pi + 1e-12
             return d_raw, a1, is_long
 
-        want_ccw = (str(direction).lower() == "ccw")
+        want_ccw = str(direction).lower() == "ccw"
 
         # Evaluate both candidate centers; pick one that matches long_arc flag
         best = None
         for C in centers:
             delta, a1, is_long = delta_for_center(C, want_ccw)
-            score = (is_long == bool(long_arc))  # exact match preferred
-            if best is None or score:            # prefer matching long/minor
+            score = is_long == bool(long_arc)  # exact match preferred
+            if best is None or score:  # prefer matching long/minor
                 best = (C, delta, a1, is_long)
                 if score:
                     break
@@ -209,11 +219,13 @@ class LineDistribution:
 
     @staticmethod
     def dist_arc_with_ref_spacing(
-        p1, p2,
-        center, radius,
+        p1,
+        p2,
+        center,
+        radius,
         ref_polyline,
         direction="ccw",
-        alpha=1.0,          # 0 = uniform, 1 = ref-based
+        alpha=1.0,  # 0 = uniform, 1 = ref-based
         eps: float = 1e-6,
     ):
         """Generate a circular arc with blended spacing control.
@@ -240,7 +252,7 @@ class LineDistribution:
         :return: polyline points on the circular arc.
         :rtype: list[tuple[float, float]]
         :raises ValueError: if inputs are invalid.
-        """ 
+        """
         # --- validate / coerce inputs ---
         C = np.asarray(center, dtype=float)
         p1 = np.asarray(p1, dtype=float)
@@ -318,8 +330,10 @@ class LineDistribution:
 
     @staticmethod
     def dist_arc_with_normals_spline(
-        p1, p2,
-        center, radius,
+        p1,
+        p2,
+        center,
+        radius,
         ref_polyline,
         eps: float = 1e-9,
     ):
@@ -448,10 +462,11 @@ class LineDistribution:
             result[i] = (float(Q[0]), float(Q[1]))
 
         return result
-        
-      
+
     @staticmethod
-    def closed_left_U(bottom_right, vert_len, horiz_len, ref_polyline=None, n_segments=100):
+    def closed_left_U(
+        bottom_right, vert_len, horiz_len, ref_polyline=None, n_segments=100
+    ):
         """Construct a closed left-sided U-shaped polyline.
 
         The shape consists of:
@@ -475,16 +490,16 @@ class LineDistribution:
         :raises ValueError: if geometric parameters are invalid.
         """
         BR = np.asarray(bottom_right, float)
-        H  = float(vert_len)
-        L  = float(horiz_len)
+        H = float(vert_len)
+        L = float(horiz_len)
         if H <= 0 or L < 0:
             raise ValueError("vert_len must be > 0 and horiz_len >= 0")
 
         # Geometry
-        TR = np.array([BR[0], BR[1] + H])   # top-right
-        Cx = BR[0] - L                      # semicircle center x (left of right edge)
+        TR = np.array([BR[0], BR[1] + H])  # top-right
+        Cx = BR[0] - L  # semicircle center x (left of right edge)
         Cy = BR[1] + 0.5 * H
-        R  = 0.5 * H
+        R = 0.5 * H
 
         # Segment lengths
         L_bot, L_arc, L_top, L_right = L, np.pi * R, L, H
@@ -495,7 +510,11 @@ class LineDistribution:
             ref = np.asarray(ref_polyline, float)
             if ref.ndim != 2 or ref.shape[1] != 2:
                 raise ValueError("ref_polyline must be an (N,2) array-like")
-            seg_len = np.linalg.norm(np.diff(ref, axis=0), axis=1) if len(ref) >= 2 else np.array([1.0])
+            seg_len = (
+                np.linalg.norm(np.diff(ref, axis=0), axis=1)
+                if len(ref) >= 2
+                else np.array([1.0])
+            )
             if seg_len.sum() <= 0:
                 t = np.linspace(0.0, 1.0, len(ref) or 2)
             else:
@@ -516,8 +535,8 @@ class LineDistribution:
             elif s_along <= L_bot + L_arc:
                 # left semicircle: θ: -π/2 -> +π/2 (bottom -> top)
                 s_arc = s_along - L_bot
-                tau   = s_arc / L_arc
-                theta = -np.pi/2 + np.pi * tau
+                tau = s_arc / L_arc
+                theta = -np.pi / 2 + np.pi * tau
                 x = Cx - R * np.cos(theta)
                 y = Cy + R * np.sin(theta)
                 p = np.array([x, y])
@@ -525,7 +544,7 @@ class LineDistribution:
                 # top straight: move RIGHT to TR
                 s_top = s_along - (L_bot + L_arc)
                 p = np.array([Cx + s_top, TR[1]])
-                s_along_next = t[ind+1]*L_tot
+                s_along_next = t[ind + 1] * L_tot
                 if s_along_next > L_bot + L_arc + L_top:
                     p = np.array([TR[0], TR[1]])
             else:
@@ -542,8 +561,12 @@ class LineDistribution:
 
     @staticmethod
     def arc_like_spline_from_2pts_2tangents(
-        p1, t1_pA, t1_pB,
-        p2, t2_pA, t2_pB,
+        p1,
+        t1_pA,
+        t1_pB,
+        p2,
+        t2_pA,
+        t2_pB,
         n_points: int = 50,
         handle_scale: float = 1.0,
         eps: float = 1e-12,
@@ -621,10 +644,10 @@ class LineDistribution:
             B2 = 3.0 * one_minus_t * t**2
             B3 = t**3
             return (
-                B0[:, None] * P0[None, :] +
-                B1[:, None] * P1[None, :] +
-                B2[:, None] * P2[None, :] +
-                B3[:, None] * P3[None, :]
+                B0[:, None] * P0[None, :]
+                + B1[:, None] * P1[None, :]
+                + B2[:, None] * P2[None, :]
+                + B3[:, None] * P3[None, :]
             )
 
         # ---- Reparameterize to ~uniform arc length ----
@@ -654,10 +677,10 @@ class LineDistribution:
         j = 0
         for st in s_target:
             # advance j until s[j] <= st <= s[j+1]
-            while j < len(s) - 2 and s[j+1] < st:
+            while j < len(s) - 2 and s[j + 1] < st:
                 j += 1
-            s0, s1 = s[j], s[j+1]
-            p0, p1_ = pts_sample[j], pts_sample[j+1]
+            s0, s1 = s[j], s[j + 1]
+            p0, p1_ = pts_sample[j], pts_sample[j + 1]
 
             if s1 - s0 < eps:
                 alpha = 0.0

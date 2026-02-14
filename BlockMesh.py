@@ -1,10 +1,11 @@
+import numpy as np
+from scipy.interpolate import splprep
+
 """
 This code is taken and adapted according to requirement from PyAero repository.
 GitHub: https://github.com/chiefenne/PyAero 
 """
 
-import numpy as np
-from scipy.interpolate import splprep
 
 class BlockMesh:
     """Container class for block-structured 2D meshes.
@@ -13,6 +14,7 @@ class BlockMesh:
     each U-line is a list of `(x, y)` tuples. V-lines (v-direction) are derived
     by collecting points at constant i-index across all U-lines.
     """
+
     def __init__(self):
         """Initialize an empty mesh container.
 
@@ -30,8 +32,8 @@ class BlockMesh:
         :rtype: None
         """
         # line is a list of (x, y) tuples
-        self.ULines.append(line)    
-    
+        self.ULines.append(line)
+
     def setUlines(self, ulines):
         """Replace the current U-lines by a new list.
 
@@ -42,12 +44,11 @@ class BlockMesh:
         """
         self.ULines = ulines
 
-    def extrudeLine_cell_thickness(self, line, normals,
-                                cell_thickness=0.04, growth=1.05,
-                                extrusion_distance=0.4):
-
+    def extrudeLine_cell_thickness(
+        self, line, normals, cell_thickness=0.04, growth=1.05, extrusion_distance=0.4
+    ):
         """Extrude a polyline along supplied normals using geometric layer growth.
-        
+
         :param line: base polyline as list of `(x, y)` tuples.
         :type line: list[tuple[float, float]]
         :param normals: normal vectors for each point in `line`.
@@ -63,19 +64,19 @@ class BlockMesh:
         :rtype: None
         """
         # ensure float64 during all math
-        pts     = np.asarray(line,    dtype=np.float64)   # (n,2)
-        normals = np.asarray(normals, dtype=np.float64)   # (n,2)
-        x, y    = pts[:, 0], pts[:, 1]
+        pts = np.asarray(line, dtype=np.float64)  # (n,2)
+        normals = np.asarray(normals, dtype=np.float64)  # (n,2)
+        x, y = pts[:, 0], pts[:, 1]
 
         spacing, _ = self.spacing_cell_thickness(
             cell_thickness=cell_thickness,
             growth=growth,
-            extrusion_distance=extrusion_distance
+            extrusion_distance=extrusion_distance,
         )  # spacing is np.float64 array
 
         for s in spacing:
-            xo = x + s * normals[:, 0]    # float64
-            yo = y + s * normals[:, 1]    # float64
+            xo = x + s * normals[:, 0]  # float64
+            yo = y + s * normals[:, 1]  # float64
 
             # Option 1: tuples of np.float64 scalars
             poly = list(zip(map(np.float64, xo), map(np.float64, yo)))
@@ -83,7 +84,7 @@ class BlockMesh:
             # Option 2 (also fine): tuples of Python float (also 64-bit)
             # poly = [(float(a), float(b)) for a, b in zip(xo, yo)]
 
-            self.addLine(poly)            # addLine stays unchanged (expects tuples)
+            self.addLine(poly)  # addLine stays unchanged (expects tuples)
 
     def getNodeCoo(self, node):
         """Return the coordinate of a node addressed by structured indices.
@@ -141,18 +142,17 @@ class BlockMesh:
 
         istart, iend, jstart, jend = ij
 
-
         U, V = self.getDivUV()
-        lower_u = self.getLine(number=jstart, direction='u')  # U-line at jstart
-        upper_u = self.getLine(number=jend,   direction='u')  # U-line at jend
-        left_v  = self.getLine(number=istart, direction='v')  # V-line at istart
-        right_v = self.getLine(number=iend,   direction='v')  # V-line at iend
+        lower_u = self.getLine(number=jstart, direction="u")  # U-line at jstart
+        upper_u = self.getLine(number=jend, direction="u")  # U-line at jend
+        left_v = self.getLine(number=istart, direction="v")  # V-line at istart
+        right_v = self.getLine(number=iend, direction="v")  # V-line at iend
 
         # Slice to the requested subrange
-        lower = lower_u[istart:iend + 1]
-        upper = upper_u[istart:iend + 1]
-        left  = left_v[jstart:jend + 1]
-        right = right_v[jstart:jend + 1]
+        lower = lower_u[istart : iend + 1]
+        upper = upper_u[istart : iend + 1]
+        left = left_v[jstart : jend + 1]
+        right = right_v[jstart : jend + 1]
 
         # Build boundary curves from the parent mesh
         sub = BlockMesh()
@@ -160,7 +160,6 @@ class BlockMesh:
 
         return sub
 
-    
     def extrudeLine_spacing(self, line, lengths, direction):
         """Extrude a polyline in a specified direction using explicit spacing.
 
@@ -189,7 +188,7 @@ class BlockMesh:
             yo = y + spacing[i] * ny
             new_line = list(zip(xo.tolist(), yo.tolist()))
             self.addLine(new_line)
-    
+
     @staticmethod
     def spacing_cell_thickness(cell_thickness=0.04, growth=1.1, extrusion_distance=0.4):
         """Compute cumulative layer offsets using geometric growth.
@@ -212,7 +211,9 @@ class BlockMesh:
         """
         # add cell thickness of first layer
         spacing = [cell_thickness]
-        N = np.log(1 + (growth - 1) * extrusion_distance / cell_thickness) / np.log(growth)
+        N = np.log(1 + (growth - 1) * extrusion_distance / cell_thickness) / np.log(
+            growth
+        )
         divisions = int(np.ceil(N))
 
         for i in range(divisions - 1):
@@ -222,6 +223,7 @@ class BlockMesh:
         length = np.sum(spacing)
 
         return spacing, length
+
     @staticmethod
     def unit_vector(vector):
         """Return the unit vector of the given vector.
@@ -277,7 +279,7 @@ class BlockMesh:
         """
         return self.ULines
 
-    def getLine(self, number=0, direction='u'):
+    def getLine(self, number=0, direction="u"):
         """Return a specific line in u- or v-direction.
 
         :param number: index of the requested line.
@@ -287,9 +289,9 @@ class BlockMesh:
         :return: requested line as list of `(x, y)` tuples.
         :rtype: list[tuple[float, float]]
         """
-        if direction.lower() == 'u':
+        if direction.lower() == "u":
             lines = self.getULines()
-        if direction.lower() == 'v':
+        if direction.lower() == "v":
             lines = self.getVLines()
         return lines[number]
 
@@ -329,10 +331,10 @@ class BlockMesh:
             left = boundary[2]
             right = boundary[3]
         elif ij:
-            lower = self.getULines()[ij[2]][ij[0]:ij[1] + 1]
-            upper = self.getULines()[ij[3]][ij[0]:ij[1] + 1]
-            left = self.getVLines()[ij[0]][ij[2]:ij[3] + 1]
-            right = self.getVLines()[ij[1]][ij[2]:ij[3] + 1]
+            lower = self.getULines()[ij[2]][ij[0] : ij[1] + 1]
+            upper = self.getULines()[ij[3]][ij[0] : ij[1] + 1]
+            left = self.getVLines()[ij[0]][ij[2] : ij[3] + 1]
+            right = self.getVLines()[ij[1]][ij[2] : ij[3] + 1]
         else:
             lower = self.getULines()[0]
             upper = self.getULines()[-1]
@@ -376,10 +378,18 @@ class BlockMesh:
 
                 node = i * len(u_left) + j
 
-                point = (1.0 - xi) * left[j] + xi * right[j] + \
-                    (1.0 - eta) * lower[i] + eta * upper[i] - \
-                    ((1.0 - xi) * (1.0 - eta) * c1 + (1.0 - xi) * eta * c2 +
-                     xi * (1.0 - eta) * c3 + xi * eta * c4)
+                point = (
+                    (1.0 - xi) * left[j]
+                    + xi * right[j]
+                    + (1.0 - eta) * lower[i]
+                    + eta * upper[i]
+                    - (
+                        (1.0 - xi) * (1.0 - eta) * c1
+                        + (1.0 - xi) * eta * c2
+                        + xi * (1.0 - eta) * c3
+                        + xi * eta * c4
+                    )
+                )
 
                 nodes[node, 0] = point[0]
                 nodes[node, 1] = point[1]
@@ -401,7 +411,7 @@ class BlockMesh:
             n = -1
             for k in range(ij[2], ij[3] + 1):
                 n += 1
-                self.ULines[k][ij[0]:ij[1] + 1] = ulines[n]
+                self.ULines[k][ij[0] : ij[1] + 1] = ulines[n]
         else:
             self.ULines = self.makeUfromV(vlines)
 

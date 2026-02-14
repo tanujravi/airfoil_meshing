@@ -1,10 +1,12 @@
+from scipy import spatial
+import numpy as np
+
 """
 This code is taken and adapted according to requirement from PyAero repository.
 GitHub: https://github.com/chiefenne/PyAero 
 """
 
-from scipy import spatial
-import numpy as np
+
 class Connect:
     """Connectivity and vertex utilities for block-structured meshes.
 
@@ -16,6 +18,7 @@ class Connect:
       globally connected mesh with compact node numbering.
 
     """
+
     def __init__(self):
         pass
 
@@ -58,7 +61,7 @@ class Connect:
             vertices += uline
         return vertices
 
-    def getNearestNeighboursPairs(self, vertices, radius=1.e-8):
+    def getNearestNeighboursPairs(self, vertices, radius=1.0e-8):
         """Find pairs of vertices within a given distance tolerance.
 
         :param vertices: vertex coordinates.
@@ -69,10 +72,10 @@ class Connect:
         :rtype: set[tuple[int, int]]
         """
         tree = spatial.cKDTree(vertices)
-        pairs = tree.query_pairs(radius, p=2., eps=0)
+        pairs = tree.query_pairs(radius, p=2.0, eps=0)
         return pairs
 
-    def getNearestNeighbours(self, vertices, neighbours, radius=1.e-8):
+    def getNearestNeighbours(self, vertices, neighbours, radius=1.0e-8):
         """Map each vertex to indices of neighbour points within a radius.
 
         Builds a KD-tree on `neighbours` and for each vertex in `vertices`
@@ -96,11 +99,10 @@ class Connect:
 
         vertex_and_neighbours = dict()
         for vertex_id, vertex in enumerate(vertices):
-            vertex_and_neighbours[vertex_id] = \
-                tree.query_ball_point(vertex, radius)
+            vertex_and_neighbours[vertex_id] = tree.query_ball_point(vertex, radius)
 
         return vertex_and_neighbours
-    
+
     def shiftConnectivity(self, connectivity, shift):
         """Shift connectivity indices by a constant offset.
 
@@ -123,7 +125,7 @@ class Connect:
             connectivity_shifted.append(new_cell)
 
         return connectivity_shifted
-    
+
     def connectAllBlocks(self, blocks, trias):
         """Assemble multiple blocks into a single connected mesh.
 
@@ -165,14 +167,14 @@ class Connect:
 
             # shift the block connectivity by accumulated number of vertices
             # from all blocks before this one
-            connectivity_block = \
-                self.shiftConnectivity(self.getConnectivity(block), shift)
+            connectivity_block = self.shiftConnectivity(
+                self.getConnectivity(block), shift
+            )
             connectivity += [tuple(cell) for cell in connectivity_block]
-
 
         for d in trias:
             P3 = np.asarray(d["P"], dtype=float)
-            T  = np.asarray(d["connectivity"], dtype=int)
+            T = np.asarray(d["connectivity"], dtype=int)
             if P3.ndim != 2 or P3.shape[1] < 2:
                 raise ValueError("tria P must be (N,2) or (N,3)")
             if T.ndim != 2 or T.shape[1] != 3:
@@ -182,16 +184,16 @@ class Connect:
             vertices += verts_t
             con_t = [[int(i) + shift, int(j) + shift, int(k) + shift] for i, j, k in T]
             connectivity += con_t
-    
+
         vertices = [(vertex[0], vertex[1]) for vertex in vertices]
 
         # search vertices of all blocks against themselves
         # finds itself AND multiple connections (i.e. vertices from neighbour blocks)
         # uses Scipy kd-tree for quick nearest-neighbor lookup
         # the distance tolerance is specified via the radius variable
-        vertex_and_neighbours = self.getNearestNeighbours(vertices,
-                                                          vertices,
-                                                          radius=1.e-8)
+        vertex_and_neighbours = self.getNearestNeighbours(
+            vertices, vertices, radius=1.0e-8
+        )
 
         connectivity_connected = []
         for cell in connectivity:
@@ -203,8 +205,8 @@ class Connect:
         old_to_new = {old: new for new, old in enumerate(used_old_ids)}
 
         vertices_clean = [vertices[old] for old in used_old_ids]
-        connectivity_clean = [[old_to_new[n] for n in cell] for cell in connectivity_connected]
+        connectivity_clean = [
+            [old_to_new[n] for n in cell] for cell in connectivity_connected
+        ]
 
         return vertices_clean, connectivity_clean
-
-

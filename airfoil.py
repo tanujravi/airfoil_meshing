@@ -1,5 +1,4 @@
-"""Airfoil contour tools and geometrical properties.
-"""
+"""Airfoil contour tools and geometrical properties."""
 
 from typing import Self, Tuple
 import logging
@@ -11,14 +10,14 @@ logging.basicConfig(
     format="{asctime} - {levelname} - {message}",
     style="{",
     datefmt="%Y-%m-%d %H:%M",
-    level=logging.INFO
+    level=logging.INFO,
 )
 
 
 class Airfoil(object):
-    """Container class for airfoil contour tools.
-    """
-    def __init__(self, x: np.ndarray, y: np.ndarray, k: int=2):
+    """Container class for airfoil contour tools."""
+
+    def __init__(self, x: np.ndarray, y: np.ndarray, k: int = 2):
         """Construct airfoil contour from points.
 
         The following assumptions about the airfoil are made:
@@ -39,7 +38,7 @@ class Airfoil(object):
         self._sp_x, self._sp_y = self._fit_contour(k)
 
     @classmethod
-    def from_contour_file(cls, filename: str, k: int=2) -> Self:
+    def from_contour_file(cls, filename: str, k: int = 2) -> Self:
         """Create airfoil from contour data in textfile.
 
         :param filename: contour data filename or path to file
@@ -52,7 +51,7 @@ class Airfoil(object):
         """
         df = read_csv(filename, comment="#", sep=r"\s+", header=None, names=("x", "y"))
         return cls(df.x, df.y, k)
-    
+
     def _fit_contour(self, k: int) -> Tuple[BSpline, BSpline]:
         """Create contour spline approximation.
 
@@ -65,12 +64,16 @@ class Airfoil(object):
         :return: `BSpline` instances for both coordinates
         :rtype: Tuple[BSpline, BSpline]
         """
-        s = np.cumsum(np.linalg.norm(np.vstack((np.diff(self._x), np.diff(self._y))), axis=0))
+        s = np.cumsum(
+            np.linalg.norm(np.vstack((np.diff(self._x), np.diff(self._y))), axis=0)
+        )
         s = np.concatenate(([0], s))
         s /= s[-1]
         return make_interp_spline(s, self._x, k), make_interp_spline(s, self._y, k)
-    
-    def _evaluate_contour(self, n_points: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+
+    def _evaluate_contour(
+        self, n_points: int
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Evaluate contour splines for a given number of points.
 
         Note that the trailing edge is not included in the evaluation.
@@ -85,7 +88,7 @@ class Airfoil(object):
         x = self._sp_x(u)
         y = self._sp_y(u)
         return x, y, u
-    
+
     def _evaluate_curvature(self, n_points: int) -> np.ndarray:
         """Spline-based evaluation of contour curavture.
 
@@ -99,21 +102,20 @@ class Airfoil(object):
         dy = self._sp_y.derivative(1)(u)
         ddx = self._sp_x.derivative(2)(u)
         ddy = self._sp_y.derivative(2)(u)
-        curv = np.abs(dx*ddy - dy*ddx) / (dx**2 + dy**2)**1.5
+        curv = np.abs(dx * ddy - dy * ddx) / (dx**2 + dy**2) ** 1.5
         return curv / curv.max()
 
-
     def distribute_points(
-            self,
-            n_points: int,
-            n_points_te: int=10,
-            weight_upper: int=1.0,
-            weight_curvature: int=4.0,
-            weight_te: int=4.0,
-            fraction_te: float=0.2,
-            max_size_ratio: int=1.15,
-            n_points_high_res: int=5000,
-            max_relax_iter: int=100
+        self,
+        n_points: int,
+        n_points_te: int = 10,
+        weight_upper: int = 1.0,
+        weight_curvature: int = 4.0,
+        weight_te: int = 4.0,
+        fraction_te: float = 0.2,
+        max_size_ratio: int = 1.15,
+        n_points_high_res: int = 5000,
+        max_relax_iter: int = 100,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Distribute contour points for CFD-meshing.
 
@@ -154,49 +156,60 @@ class Airfoil(object):
         curv = self._evaluate_curvature(n_points_high_res)
         chord = x.max() - x.min()
         dist_te = (x.max() - x) / chord
-        weights = 1.0 + weight_curvature * curv \
-            + weight_te * np.maximum((fraction_te  - dist_te) / fraction_te, 0.0)**2 \
+        weights = (
+            1.0
+            + weight_curvature * curv
+            + weight_te * np.maximum((fraction_te - dist_te) / fraction_te, 0.0) ** 2
             + weight_upper * (0.5 + 0.5 * np.tanh(s - np.mean(s)))
-        weights[ y > 0] *= weight_upper
+        )
+        weights[y > 0] *= weight_upper
         weighted = np.hstack(([0], np.cumsum(weights[1:] * ds)))
         weighted /= weighted[-1]
         target_weights = np.linspace(0, 1, n_points)
         s_new = np.interp(target_weights, weighted, s)
+
         def stretching_statistics(s: np.ndarray) -> Tuple[float, float, float]:
             ds = np.diff(s)
             r = ds[1:] / ds[:-1]
             return np.mean(r), np.min(r), np.max(r)
+
         def relax_stretching(s: np.ndarray, max_ratio: int):
             _, rmin, rmax = stretching_statistics(s)
             limit = abs(1.0 - max_ratio)
             return max(abs(1.0 - rmin), abs(1.0 - rmax)) > limit
+
         logging.info(
-            "length ratio of neighboring surface elements (mean, min, max): " +
-            "{:1.4f}, {:1.4f}, {:1.4f}".format(*stretching_statistics(s_new))
-            )
+            "length ratio of neighboring surface elements (mean, min, max): "
+            + "{:1.4f}, {:1.4f}, {:1.4f}".format(*stretching_statistics(s_new))
+        )
         if relax_stretching(s_new, max_size_ratio):
             logging.info("relaxing surface point distribution")
             uniform = np.linspace(0, 1, len(weighted))
             for i in range(max_relax_iter):
                 weighted = 0.9 * weighted + 0.1 * uniform
                 s_new = np.interp(target_weights, weighted, s)
-                logging.info(f"iter. {i} (mean, min, max): " + "{:1.4f}, {:1.4f}, {:1.4f}".format(*stretching_statistics(s_new)))
+                logging.info(
+                    f"iter. {i} (mean, min, max): "
+                    + "{:1.4f}, {:1.4f}, {:1.4f}".format(*stretching_statistics(s_new))
+                )
                 if not relax_stretching(s_new, max_size_ratio):
                     logging.info(f"relaxation converged after {i+1:d} iterations")
                     break
-                if i==max_relax_iter-1:
-                    logging.info(f"relaxation did not converge within {max_relax_iter} iterations")
+                if i == max_relax_iter - 1:
+                    logging.info(
+                        f"relaxation did not converge within {max_relax_iter} iterations"
+                    )
 
         u_interp = np.interp(s_new, s, u)
         dx = self._sp_x.derivative(1)(u_interp)
-        dy = self._sp_y.derivative(1)(u_interp)        
+        dy = self._sp_y.derivative(1)(u_interp)
         normals = np.vstack([-dy, dx]).T
         norms = np.linalg.norm(normals, axis=1, keepdims=True)
         normals_unit = normals / norms
         x_te = np.linspace(x[0], x[-1], n_points_te)
         y_te = np.linspace(y[0], y[-1], n_points_te)
         return self._sp_x(u_interp), self._sp_y(u_interp), x_te, y_te, normals_unit
-    
+
     @property
     def x(self) -> np.ndarray:
         """x-coordinates of original contour data.
@@ -205,7 +218,7 @@ class Airfoil(object):
         :rtype: np.ndarray
         """
         return self._x
-    
+
     @property
     def y(self) -> np.ndarray:
         """x-coordinates of original contour data.
@@ -214,5 +227,3 @@ class Airfoil(object):
         :rtype: np.ndarray
         """
         return self._y
-
-
