@@ -190,7 +190,7 @@ The trailing edge region where this bias is applied is controlled using "fractio
   </tr>
 </table>
 
-9. wake region dimensions - Controls the region of refinement in the wake region (trapezium-shaped).
+9. Wake region dimensions - Controls the region of refinement in the wake region (trapezium-shaped).
 <table align="center">
   <tr>
     <td align="center">
@@ -204,7 +204,22 @@ The trailing edge region where this bias is applied is controlled using "fractio
   </tr>
 </table>
 
-10. wake region mesh size - Controls the triangular element size in the wake region.
+10. Minimum interface mesh size - Defines the target mesh size for unstructured triangular elements at the interface between the structured and unstructured regions.
+It acts as a lower bound that prevents excessively small triangles from forming at the transition. In practice, it allows smaller structured elements near the interface to be merged into larger triangular elements, according to the specified threshold. 
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="data/images/parameter_variation/interface_min_size_base.png" width="400"><br>
+      <em>(a) interface_min_size = 1e-6</em>
+    </td>
+    <td align="center">
+      <img src="data/images/parameter_variation/interface_min_size_act.png" width="400"><br>
+      <em>(b) interface_min_size = 1e-3</em>
+    </td>
+  </tr>
+</table>
+
+11. wake region mesh size - Controls the triangular element size in the wake region.
 <table align="center">
   <tr>
     <td align="center">
@@ -217,9 +232,9 @@ The trailing edge region where this bias is applied is controlled using "fractio
     </td>
   </tr>
 </table>
-Notes: No. of elements for wake_size = 0.02 is 222,346 and for wake_size = 0.01 is 354,396.
+Note: No. of elements for wake_size = 0.02 is 222,346 and for wake_size = 0.01 is 354,396.
 
-11. Farfield mesh size - Controls the mesh sizing for filling remaining region.
+12. Farfield mesh size - Controls the mesh sizing for filling remaining region.
 <table align="center">
   <tr>
     <td align="center">
@@ -233,5 +248,16 @@ Notes: No. of elements for wake_size = 0.02 is 222,346 and for wake_size = 0.01 
   </tr>
 </table>
 
-11. Fafield mesh grading - Seems to have no effect, more investigation is required. 
-
+13. Fafield mesh grading distance - Specifies the spatial distance over which the mesh transitions from min_size to max_size. A larger value produces a smoother and more gradual grading, allowing the fine mesh region to extend farther into the domain. A smaller value results in a sharper transition and a more rapid increase in element size away from the body. 
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="data/images/parameter_variation/grading_base.png" width="400"><br>
+      <em>(a) grading = 0.01</em>
+    </td>
+    <td align="center">
+      <img src="data/images/parameter_variation/grading_act.png" width="400"><br>
+      <em>(b) grading = 100</em>
+    </td>
+  </tr>
+</table>
