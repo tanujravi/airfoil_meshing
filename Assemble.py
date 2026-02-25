@@ -160,9 +160,12 @@ class Assemble:
 
             te_circular_outer = BlockMesh()
 
-            y_upper = p_te_up[1] + 0.25 * len_te
-
+            fraction_te_struct = ex_tunnel.get("fraction_structured", 0.5)    
             te_upper_line = mesh.getLine(number=-1, direction="v").copy()
+            len_upper_te = np.linalg.norm(np.array(te_upper_line[0])-np.array(te_upper_line[-1]))            
+            y_upper = p_te_up[1] + fraction_te_struct * len_upper_te
+
+            
             boundaries_upper = [p for p in te_upper_line if p[1] <= y_upper]
 
             te_line_remaining_upper = [p for p in te_upper_line if p[1] > y_upper]
@@ -211,7 +214,7 @@ class Assemble:
                 radius=R_arc_te_skeleton,
                 ref_polyline=normal_ref,
                 direction="cw",
-                alpha=0.9,
+                alpha=0.0,
             )
 
             boundaries_left.reverse()
@@ -242,39 +245,6 @@ class Assemble:
         # --------------------------
         # Unstructured mesh using Gmsh
         # --------------------------
-        def simplify_polyline_by_min_edge(points, h_min):
-            """
-            Remove intermediate points whose adjacent segments are too small to resolve.
-
-            Rule: if ||A-B|| + ||B-C|| < h_min, drop B.
-            Keeps endpoints always.
-
-            :param points: polyline points [(x,y), ...]
-            :type points: list[tuple[float,float]]
-            :param h_min: target minimum mesh edge length
-            :type h_min: float
-            :return: simplified polyline
-            :rtype: list[tuple[float,float]]
-            """
-            pts = [np.array(p, float) for p in points]
-            if len(pts) <= 2:
-                return points
-
-            keep = [pts[0]]
-            i = 1
-            while i < len(pts) - 1:
-                A = keep[-1]
-                B = pts[i]
-                C = pts[i + 1]
-                if np.linalg.norm(B - A) + np.linalg.norm(C - B) < h_min:
-                    # Drop B (do not advance keep), just skip it
-                    i += 1
-                    continue
-                keep.append(B)
-                i += 1
-
-            keep.append(pts[-1])
-            return [tuple(p) for p in keep]
 
         angle_deg = ex_tunnel.get("angle", 5.0)  # magnitude of slope angle (deg)
         Lx = ex_tunnel.get(
@@ -285,7 +255,6 @@ class Assemble:
 
         ds = ex_mesh.get("wake_size", 0.01)  # spacing
         lc_block1 = ex_mesh.get("wake_size", 0.01)
-        interface_size = ex_mesh.get("interface_min_size", 0.0001)
         ex_farfield = ex_mesh.get("farfield", "")
         lc_inner = ex_farfield.get("min_size", 0.3)
         lc_outer = ex_farfield.get("max_size", 3.2)
@@ -293,9 +262,7 @@ class Assemble:
 
         airfoil_line = te_line_remaining_lower.copy()
         airfoil_line.reverse()
-        airfoil_line = simplify_polyline_by_min_edge(airfoil_line, interface_size)
         airfoil_line1 = te_line_remaining_upper.copy()
-        airfoil_line1 = simplify_polyline_by_min_edge(airfoil_line1, interface_size)
         
         airfoil_line.extend(te_line[1:])
 
@@ -343,21 +310,18 @@ class Assemble:
 
         poly_pts = airfoil_line + upper_line + right_line[::-1] + lower_line[::-1]
         inner_airfoil_line = boundaries_rest_outer.copy()
-        shock_left = simplify_polyline_by_min_edge(shock_left, interface_size)
 
         inner_airfoil_line.extend(shock_left[:])
 
         inner_airfoil_line.extend(shock_upper[1:])
 
         shock_right.reverse()
-        shock_right = simplify_polyline_by_min_edge(shock_right, interface_size)
         
         inner_airfoil_line.extend(shock_right[1:])
         inner_airfoil_line.extend(boundaries_right_upper)
         inner_airfoil_line.extend(upper_line)
         inner_airfoil_line.extend(right_line[::-1])
         inner_airfoil_line.extend(lower_line[::-1])
-        #inner_airfoil_line = simplify_polyline_by_min_edge(inner_airfoil_line, lc_inner)
         ex_fardim = self.config.get("farfield", {})
         L_farfield = ex_fardim.get("length", 100)
         R_farfield = ex_fardim.get("radius", 50)

@@ -190,7 +190,21 @@ The trailing edge region where this bias is applied is controlled using "fractio
   </tr>
 </table>
 
-9. Wake region dimensions - Controls the region of refinement in the wake region (trapezium-shaped).
+9. Fraction structured - Specifies the portion of the airfoil trailing-edge (TE) region that will be meshed using a structured grid. The value represents the fraction of the structured mesh length measured in the wall-normal direction relative to the total airfoil extrusion length.  
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="data/images/parameter_variation/fraction_struct_base.png" width="400"><br>
+      <em>(a) fraction_structured = 0.5</em>
+    </td>
+    <td align="center">
+      <img src="data/images/parameter_variation/fraction_struct_act.png" width="400"><br>
+      <em>(b) fraction_structured = 0.7</em>
+    </td>
+  </tr>
+</table>
+
+10. Wake region dimensions - Controls the region of refinement in the wake region (trapezium-shaped).
 <table align="center">
   <tr>
     <td align="center">
@@ -204,20 +218,6 @@ The trailing edge region where this bias is applied is controlled using "fractio
   </tr>
 </table>
 
-10. Minimum interface mesh size - Defines the target mesh size for unstructured triangular elements at the interface between the structured and unstructured regions.
-It acts as a lower bound that prevents excessively small triangles from forming at the transition. In practice, it allows smaller structured elements near the interface to be merged into larger triangular elements, according to the specified threshold. 
-<table align="center">
-  <tr>
-    <td align="center">
-      <img src="data/images/parameter_variation/interface_min_size_base.png" width="400"><br>
-      <em>(a) interface_min_size = 1e-6</em>
-    </td>
-    <td align="center">
-      <img src="data/images/parameter_variation/interface_min_size_act.png" width="400"><br>
-      <em>(b) interface_min_size = 1e-3</em>
-    </td>
-  </tr>
-</table>
 
 11. wake region mesh size - Controls the triangular element size in the wake region.
 <table align="center">
