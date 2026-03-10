@@ -8,7 +8,7 @@ airfoil_boundary:
   n_points: 500
   n_points_te: 10
   weight_upper: 1.0
-  weight_curvature: 4.0
+  weight_curvature: 8.0
   weight_te: 4.0
   fraction_te: 0.2
   max_size_ratio: 1.15
@@ -29,7 +29,7 @@ shock_box:
 wake_tunnel:
   n_points: 70
   make_curve: True
-  fraction_structured: 0.5 #(if make_curve == True)
+  fraction_structured: 0.7 #(if make_curve == True)
   length: 5.0
   angle: 5.0
 
