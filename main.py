@@ -17,7 +17,7 @@ if __name__ == "__main__":
     assemble = Assemble(config)
     assemble.assemble()
     connect = Connect()
-    vertices, connectivity = connect.connectAllBlocks(assemble.blocks, assemble.trias)
+    vertices, connectivity = connect.connectAllBlocks(assemble.blocks, assemble.unstructured)
     mesh = Mesh(vertices, connectivity)
     ex = config.get("output", {})
     mesh.write_obj(ex.get("obj_filename", "mesh.obj"))

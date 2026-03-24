@@ -126,34 +126,36 @@ class Connect:
 
         return connectivity_shifted
 
-    def connectAllBlocks(self, blocks, trias):
-        """Assemble multiple blocks into a single connected mesh.
+    def connectAllBlocks(self, structured, unstructured):
+        """Assemble structured and unstructured blocks into a single connected mesh.
 
-        All vertices and cell connectivities from the provided blocks are
-        concatenated into a global mesh. Near-duplicate vertices are detected
-        using a KD-tree search and merged within a fixed tolerance. The final
-        vertex list and connectivity are compacted to remove unused nodes.
+        All vertices and cell connectivities from the provided structured blocks
+        and optional unstructured patches are concatenated into a global mesh.
+        Near-duplicate vertices are identified using a KD-tree search and merged
+        within a specified tolerance. The final vertex list and connectivity are
+        compacted to remove unused nodes and ensure consistent indexing.
 
-        Optional triangulated patches (TRI3 elements) can be appended to the
-        mesh and are included in the merging and renumbering process.
+        Unstructured patches can contain:
+        - TRI3 elements via ``"tri_connectivity"`` or legacy ``"connectivity"``
+        - QUAD4 elements via ``"quad_connectivity"``
 
-        :param blocks: list of structured block meshes.
-        :type blocks: list[BlockMesh]
-        :param trias: list of triangulated patches. Each entry must contain
-            the keys ``"P"`` (point coordinates of shape ``(N,2)`` or ``(N,3)``)
-            and ``"connectivity"`` (integer array of shape ``(M,3)``).
-        :type trias: list[dict]
-        :return: tuple ``(vertices, connectivity)`` where
-            ``vertices`` is the list of unique vertex coordinates and
-            ``connectivity`` is the global cell connectivity.
+        :param structured: list of structured block meshes.
+        :type structured: list[BlockMesh]
+
+        :param unstructured: list of unstructured mesh patches (can be empty or None).
+        :type unstructured: list[dict] | None
+
+        :return: tuple ``(vertices, connectivity)``
+            - ``vertices``: list of unique vertex coordinates ``[(x, y), ...]``
+            - ``connectivity``: list of cells with variable size
+            (3 nodes for triangles, 4 nodes for quads)
         :rtype: tuple[list[tuple[float, float]], list[list[int]]]
-        :raises ValueError: if triangulated patch data has invalid shape.
         """
         # compile global vertex list and cell connectivity from all blocks
         vertices = list()
         connectivity = list()
 
-        for i, block in enumerate(blocks):
+        for i, block in enumerate(structured):
 
             # accumulated number of vertices
             # for i = 0 shift is automatically 0
@@ -172,18 +174,53 @@ class Connect:
             )
             connectivity += [tuple(cell) for cell in connectivity_block]
 
-        for d in trias:
+        for d in unstructured:
             P3 = np.asarray(d["P"], dtype=float)
-            T = np.asarray(d["connectivity"], dtype=int)
             if P3.ndim != 2 or P3.shape[1] < 2:
-                raise ValueError("tria P must be (N,2) or (N,3)")
-            if T.ndim != 2 or T.shape[1] != 3:
-                raise ValueError("tria connectivity must be (M,3) for TRI3")
+                raise ValueError("patch P must be (N,2) or (N,3)")
+
             shift = len(vertices)
-            verts_t = [(float(x), float(y)) for x, y, *rest in P3]
-            vertices += verts_t
-            con_t = [[int(i) + shift, int(j) + shift, int(k) + shift] for i, j, k in T]
-            connectivity += con_t
+
+            # add patch vertices
+            verts_patch = [(float(x), float(y)) for x, y, *rest in P3]
+            vertices += verts_patch
+
+
+        # ---- TRI3 support ----
+        tri_raw = None
+        if d.get("tri_connectivity", None) is not None:
+            tri_raw = d["tri_connectivity"]
+        elif d.get("connectivity", None) is not None:
+            # backward compatibility
+            tri_raw = d["connectivity"]
+
+        if tri_raw is not None:
+            Ttri = np.asarray(tri_raw, dtype=int)
+            if Ttri.size > 0:
+                if Ttri.ndim != 2 or Ttri.shape[1] != 3:
+                    raise ValueError(
+                        "tri_connectivity/connectivity must be of shape (M,3)"
+                    )
+                con_tri = [
+                    [int(i) + shift, int(j) + shift, int(k) + shift]
+                    for i, j, k in Ttri
+                ]
+                connectivity += con_tri
+
+        # ---- QUAD4 support ----
+        quad_raw = d.get("quad_connectivity", None)
+        if quad_raw is not None:
+            Tquad = np.asarray(quad_raw, dtype=int)
+            if Tquad.size > 0:
+                if Tquad.ndim != 2 or Tquad.shape[1] != 4:
+                    raise ValueError(
+                        "quad_connectivity must be of shape (M,4)"
+                    )
+                con_quad = [
+                    [int(i) + shift, int(j) + shift, int(k) + shift, int(l) + shift]
+                    for i, j, k, l in Tquad
+                ]
+                connectivity += con_quad
 
         vertices = [(vertex[0], vertex[1]) for vertex in vertices]
 

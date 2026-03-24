@@ -219,7 +219,26 @@ The trailing edge region where this bias is applied is controlled using "fractio
 </table>
 
 
-11. wake region mesh size - Controls the triangular element size in the wake region.
+11. Unstructured mesh fill type - This parameter controls the type of elements used in the unstructured mesh region. Two options are available:
+
+- `"tria"`: fills the region exclusively with triangular elements  
+- `"quad"`: generates a quad-dominant mesh, primarily composed of quadrilateral elements, with a small number of triangles where necessary  
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="data/images/parameter_variation/fill_type_base.png" width="400"><br>
+      <em>(a) fill_type = "tria"</em>
+    </td>
+    <td align="center">
+      <img src="data/images/parameter_variation/fill_type_act.png" width="400"><br>
+      <em>(b) fill_type = "quad"</em>
+    </td>
+  </tr>
+</table>
+Note: When using fill_type = "quad", a larger mesh size can typically be employed while maintaining good mesh quality.
+
+12. Wake region mesh size - Controls the element size in the wake region.
 <table align="center">
   <tr>
     <td align="center">
@@ -234,7 +253,7 @@ The trailing edge region where this bias is applied is controlled using "fractio
 </table>
 Note: No. of elements for wake_size = 0.02 is 222,346 and for wake_size = 0.01 is 354,396.
 
-12. Farfield mesh size - Controls the mesh sizing for filling remaining region.
+13. Farfield mesh size - Controls the mesh sizing for filling remaining region.
 <table align="center">
   <tr>
     <td align="center">
@@ -248,7 +267,7 @@ Note: No. of elements for wake_size = 0.02 is 222,346 and for wake_size = 0.01 i
   </tr>
 </table>
 
-13. Fafield mesh grading distance - Specifies the spatial distance over which the mesh transitions from min_size to max_size. A larger value produces a smoother and more gradual grading, allowing the fine mesh region to extend farther into the domain. A smaller value results in a sharper transition and a more rapid increase in element size away from the body. 
+14. Fafield mesh grading distance - Specifies the spatial distance over which the mesh transitions from min_size to max_size. A larger value produces a smoother and more gradual grading, allowing the fine mesh region to extend farther into the domain. A smaller value results in a sharper transition and a more rapid increase in element size away from the body. 
 <table align="center">
   <tr>
     <td align="center">

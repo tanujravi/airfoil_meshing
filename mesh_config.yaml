@@ -34,6 +34,7 @@ wake_tunnel:
   angle: 5.0
 
 tria_mesh_settings:
+  fill_shape: "tria" #(or "quad")
   wake_size: 0.02
   farfield:
     min_size: 0.02

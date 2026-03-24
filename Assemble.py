@@ -26,7 +26,7 @@ class Assemble:
         :type config: dict
         """
         self.blocks = list()
-        self.trias = list()
+        self.unstructured = list()
         self.config = config
 
     def assemble(self):
@@ -252,7 +252,7 @@ class Assemble:
         )  # horizontal length to the right (sets the vertical right boundary x)
 
         ex_mesh = self.config.get("tria_mesh_settings", {})
-
+        fill_shape = ex_mesh.get("fill_shape", "tria")
         ds = ex_mesh.get("wake_size", 0.01)  # spacing
         lc_block1 = ex_mesh.get("wake_size", 0.01)
         ex_farfield = ex_mesh.get("farfield", "")
@@ -325,7 +325,7 @@ class Assemble:
         ex_fardim = self.config.get("farfield", {})
         L_farfield = ex_fardim.get("length", 100)
         R_farfield = ex_fardim.get("radius", 50)
-
+        
         L_tot = np.pi * R_farfield + 2 * R_farfield + 2 * L_farfield
         n_outer = int(np.ceil(L_tot / lc_outer))
         outer_airfoil_line = LineDistribution.closed_left_U(
@@ -335,12 +335,20 @@ class Assemble:
             n_segments=n_outer,
         )[1:]
 
-        algo = 6  # 2D meshing algorithm
 
+        if fill_shape == "tria":
+            algo = 6
+        elif fill_shape == "quad":
+            algo = 8  # Frontal-Delaunay for quads
+        else:
+            raise ValueError(f"Invalid fill_shape '{fill_shape}'. Expected 'tria' or 'quad'.")
+        
         gmsh.initialize()
         gmsh.model.add("two_blocks_unstructured")
         gmsh.option.setNumber("Mesh.Algorithm", algo)
-
+        if fill_shape == "quad":
+            gmsh.option.setNumber("Mesh.RecombineAll", 1)
+            
         # ---- Block 1: polygon surface ----
         p1 = [gmsh.model.occ.addPoint(x, y, 0.0) for (x, y) in poly_pts]
         l1 = [
@@ -370,7 +378,12 @@ class Assemble:
 
         gmsh.model.occ.fragment([(2, surf1), (2, surf2)], [])
         gmsh.model.occ.synchronize()
-
+        
+        
+        if fill_shape == "quad":
+            for dim, tag in gmsh.model.getEntities(2):
+                gmsh.model.mesh.setRecombine(dim, tag)
+        
         f_dist = gmsh.model.mesh.field.add("Distance")
         gmsh.model.mesh.field.setNumbers(f_dist, "CurvesList", l_in)
         gmsh.model.mesh.field.setNumber(f_dist, "NumPointsPerCurve", 50)
@@ -402,19 +415,30 @@ class Assemble:
 
         types, elem_tags, node_tags_elem = gmsh.model.mesh.getElements(2)
         TRI3_TYPE = 2
+        QUAD4_TYPE = 3
 
-        T_tags = None
+        tri_tags = None
+        quad_tags = None
+
         for etype, e_tags, conn in zip(types, elem_tags, node_tags_elem):
             if etype == TRI3_TYPE:
                 n_elems = len(e_tags)
                 nper = len(conn) // n_elems
-                T_tags = np.asarray(conn, dtype=np.int64).reshape(-1, nper)
-                break
-
+                tri_tags = np.asarray(conn, dtype=np.int64).reshape(-1, nper)
+            elif etype == QUAD4_TYPE:
+                n_elems = len(e_tags)
+                nper = len(conn) // n_elems
+                quad_tags = np.asarray(conn, dtype=np.int64).reshape(-1, nper)
         tag_to_idx = {int(tag): i for i, tag in enumerate(node_tags.tolist())}
-        T = np.vectorize(tag_to_idx.get, otypes=[np.int64])(T_tags)
 
-        dict_tria = {"P": P3, "connectivity": T}
-        self.trias.append(dict_tria)
+        T_tri = None if tri_tags is None else np.vectorize(tag_to_idx.get, otypes=[np.int64])(tri_tags)
+        T_quad = None if quad_tags is None else np.vectorize(tag_to_idx.get, otypes=[np.int64])(quad_tags)
+
+        dict_mesh = {
+            "P": P3,
+            "tri_connectivity": T_tri,
+            "quad_connectivity": T_quad,
+        }
+        self.unstructured.append(dict_mesh)
 
         gmsh.finalize()
