@@ -7,8 +7,8 @@ airfoil:
 airfoil_boundary:
   n_points: 500
   n_points_te: 10
-  weight_upper: 8.0
-  weight_curvature: 12.0
+  weight_upper: 2.0
+  weight_curvature: 6.0
   weight_te: 4.0
   fraction_te: 0.2
   max_size_ratio: 1.15
@@ -47,13 +47,13 @@ tria_mesh_settings:
   farfield:
     circle_center: [0.5, 0.0]  # Absolute coordinates.
     circle_radius: 2.0         # Absolute length. Must be > 0.
-
     inner_size: 0.02           # Absolute mesh size near inner boundary. Must be > 0.
     circle_size: 0.12          # Absolute mesh size near circular refinement boundary. Must be > 0.
+    circle_distmax: 0.7        # Absolute grading distance inside circular region. Must be > 0.
+
     farfield_start_size: 0.12  # Absolute starting mesh size outside circular region. Must be > 0.
     max_size: 3.2              # Absolute maximum farfield mesh size. Must be > 0.
 
-    circle_distmax: 0.7        # Absolute grading distance inside circular region. Must be > 0.
     outer_distmax: 20.0        # Absolute grading distance outside circular region. Must be > 0.
 
 
