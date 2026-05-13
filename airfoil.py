@@ -151,8 +151,14 @@ class Airfoil(object):
         :rtype: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
         """
         x, y, u = self._evaluate_contour(n_points_high_res)
+        print(x[-1000:])
+        print(y)
         ds = np.linalg.norm(np.vstack((np.diff(x), np.diff(y))), axis=0)
         s = np.hstack(([0], np.cumsum(ds)))
+        print(s)
+        hj = 0.5 + 0.5 * np.tanh(s - np.mean(s))
+        print(hj[-1000:])
+        print(np.mean(s))
         curv = self._evaluate_curvature(n_points_high_res)
         chord = x.max() - x.min()
         dist_te = (x.max() - x) / chord
@@ -162,7 +168,6 @@ class Airfoil(object):
             + weight_te * np.maximum((fraction_te - dist_te) / fraction_te, 0.0) ** 2
             + weight_upper * (0.5 + 0.5 * np.tanh(s - np.mean(s)))
         )
-        weights[y > 0] *= weight_upper
         weighted = np.hstack(([0], np.cumsum(weights[1:] * ds)))
         weighted /= weighted[-1]
         target_weights = np.linspace(0, 1, n_points)

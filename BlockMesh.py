@@ -210,6 +210,21 @@ class BlockMesh:
         :rtype: tuple[list[float], float]
         """
         # add cell thickness of first layer
+        if cell_thickness <= 0:
+            raise ValueError("cell_thickness must be > 0")
+        if growth <= 0:
+            raise ValueError("growth must be > 0")
+        if extrusion_distance <= 0:
+            return [0.0], 0.0
+
+        # Uniform spacing case: r = 1
+        if np.isclose(growth, 1.0):
+            divisions = int(np.ceil(extrusion_distance / cell_thickness))
+            spacing = [i * cell_thickness for i in range(divisions + 1)]
+
+            length = spacing[-1]
+            return spacing, length
+        
         spacing = [cell_thickness]
         N = np.log(1 + (growth - 1) * extrusion_distance / cell_thickness) / np.log(
             growth

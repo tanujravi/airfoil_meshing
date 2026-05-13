@@ -1,49 +1,66 @@
-
 airfoil:
-  contour_file: "ONERA-OAT15A_coordiantes.dat"   
+  contour_file: "ONERA-OAT15A_coordiantes.dat"
 
-  spline_degree: 2                                
+  spline_degree: 2
 
-airfoil_boundary:                                  
+
+airfoil_boundary:
   n_points: 500
   n_points_te: 10
-  weight_upper: 1.0
-  weight_curvature: 8.0
+  weight_upper: 8.0
+  weight_curvature: 12.0
   weight_te: 4.0
   fraction_te: 0.2
   max_size_ratio: 1.15
   n_points_high_res: 5000
   max_relax_iter: 100
 
-airfoil_extrusion:                                 
-  cell_thickness: 0.00001
-  growth: 1.03
-  extrusion_distance: 0.3
+
+airfoil_extrusion:
+  cell_thickness: 0.00001      # Absolute length. Must be > 0.
+  growth: 1.03                 # Dimensionless growth ratio. Should be >= 1.
+  extrusion_distance: 0.3      # Absolute length. Must be > 0.
+
 
 shock_box:
-  growth: 1.01
-  box_height: 0.6
-  xmin: 0.05
-  xmax: 0.7
+  growth: 1.01                 # Dimensionless growth ratio. Should be >= 1.
+  box_height: 0.6              # Normalized by chord length. Must be > 0.
+  xmin: 0.05                   # Normalized by chord length and measured from LE.
+  xmax: 0.7                    # Normalized by chord length and measured from LE. Must be > xmin.
+
 
 wake_tunnel:
   n_points: 70
   make_curve: True
-  fraction_structured: 0.7 #(if make_curve == True)
-  length: 5.0
-  angle: 5.0
+  fraction_structured: 0.7     # Used only if make_curve == True.
+  length: 5.0                  # Normalized by chord length; downstream wake length from TE/wake start. Must be > 0.
+  angle: 5.0                   # Wake opening angle in degrees.
+
 
 tria_mesh_settings:
-  fill_shape: "tria" #(or "quad")
-  wake_size: 0.02
+  fill_shape: "tria"           # Use "tria" or "quad".
+
+  # Mesh sizes below are absolute lengths and must be > 0.
+  wake_size_left: 0.02         # Absolute length near wake inlet. Must be > 0.
+  wake_size_right: 0.1         # Absolute length near wake outlet. Must be > 0.
+
   farfield:
-    min_size: 0.02
-    max_size: 3.2
-    grading: 0.01
+    circle_center: [0.5, 0.0]  # Absolute coordinates.
+    circle_radius: 2.0         # Absolute length. Must be > 0.
+
+    inner_size: 0.02           # Absolute mesh size near inner boundary. Must be > 0.
+    circle_size: 0.12          # Absolute mesh size near circular refinement boundary. Must be > 0.
+    farfield_start_size: 0.12  # Absolute starting mesh size outside circular region. Must be > 0.
+    max_size: 3.2              # Absolute maximum farfield mesh size. Must be > 0.
+
+    circle_distmax: 0.7        # Absolute grading distance inside circular region. Must be > 0.
+    outer_distmax: 20.0        # Absolute grading distance outside circular region. Must be > 0.
+
 
 farfield:
-  radius: 50
-  length: 100
+  radius: 50.0                 # Absolute length. Must be > 0.
+  length: 100.0                # Absolute downstream length. Must be > 0.
+
 
 output:
   obj_filename: "mesh.obj"

@@ -695,3 +695,56 @@ class LineDistribution:
         pts_uniform[-1] = (float(P3[0]), float(P3[1]))
 
         return pts_uniform
+
+    @staticmethod
+    def size_x_linear(x, x_left, x_right, lc_left, lc_right):
+        xi = (x - x_left) / (x_right - x_left)
+        xi = np.clip(xi, 0.0, 1.0)
+        return lc_left + (lc_right - lc_left) * xi
+
+    @staticmethod
+    def graded_straight_segment(p_start, p_end, size_fun, include_start=False, include_end=True):
+        """
+        Create points on a straight segment such that local spacing follows size_fun(x).
+
+        p_start, p_end : tuples
+        size_fun(x)    : returns desired local edge length
+        """
+        p_start = np.asarray(p_start, dtype=float)
+        p_end = np.asarray(p_end, dtype=float)
+
+        d = p_end - p_start
+        L = np.linalg.norm(d)
+
+        if L < 1e-14:
+            pts = []
+            if include_start:
+                pts.append((float(p_start[0]), float(p_start[1])))
+            if include_end and not include_start:
+                pts.append((float(p_end[0]), float(p_end[1])))
+            return pts
+
+        e = d / L
+        pts = []
+
+        if include_start:
+            pts.append((float(p_start[0]), float(p_start[1])))
+
+        s = 0.0
+        max_iter = 100000
+
+        for _ in range(max_iter):
+            x_here = p_start[0] + s * e[0]
+            h = max(1e-10, float(size_fun(x_here)))
+
+            if s + h >= L:
+                break
+
+            s += h
+            p = p_start + s * e
+            pts.append((float(p[0]), float(p[1])))
+
+        if include_end:
+            pts.append((float(p_end[0]), float(p_end[1])))
+
+        return pts

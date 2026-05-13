@@ -186,41 +186,41 @@ class Connect:
             vertices += verts_patch
 
 
-        # ---- TRI3 support ----
-        tri_raw = None
-        if d.get("tri_connectivity", None) is not None:
-            tri_raw = d["tri_connectivity"]
-        elif d.get("connectivity", None) is not None:
-            # backward compatibility
-            tri_raw = d["connectivity"]
+            # ---- TRI3 support ----
+            tri_raw = None
+            if d.get("tri_connectivity", None) is not None:
+                tri_raw = d["tri_connectivity"]
+            elif d.get("connectivity", None) is not None:
+                # backward compatibility
+                tri_raw = d["connectivity"]
 
-        if tri_raw is not None:
-            Ttri = np.asarray(tri_raw, dtype=int)
-            if Ttri.size > 0:
-                if Ttri.ndim != 2 or Ttri.shape[1] != 3:
-                    raise ValueError(
-                        "tri_connectivity/connectivity must be of shape (M,3)"
-                    )
-                con_tri = [
-                    [int(i) + shift, int(j) + shift, int(k) + shift]
-                    for i, j, k in Ttri
-                ]
-                connectivity += con_tri
+            if tri_raw is not None:
+                Ttri = np.asarray(tri_raw, dtype=int)
+                if Ttri.size > 0:
+                    if Ttri.ndim != 2 or Ttri.shape[1] != 3:
+                        raise ValueError(
+                            "tri_connectivity/connectivity must be of shape (M,3)"
+                        )
+                    con_tri = [
+                        [int(i) + shift, int(j) + shift, int(k) + shift]
+                        for i, j, k in Ttri
+                    ]
+                    connectivity += con_tri
 
-        # ---- QUAD4 support ----
-        quad_raw = d.get("quad_connectivity", None)
-        if quad_raw is not None:
-            Tquad = np.asarray(quad_raw, dtype=int)
-            if Tquad.size > 0:
-                if Tquad.ndim != 2 or Tquad.shape[1] != 4:
-                    raise ValueError(
-                        "quad_connectivity must be of shape (M,4)"
-                    )
-                con_quad = [
-                    [int(i) + shift, int(j) + shift, int(k) + shift, int(l) + shift]
-                    for i, j, k, l in Tquad
-                ]
-                connectivity += con_quad
+            # ---- QUAD4 support ----
+            quad_raw = d.get("quad_connectivity", None)
+            if quad_raw is not None:
+                Tquad = np.asarray(quad_raw, dtype=int)
+                if Tquad.size > 0:
+                    if Tquad.ndim != 2 or Tquad.shape[1] != 4:
+                        raise ValueError(
+                            "quad_connectivity must be of shape (M,4)"
+                        )
+                    con_quad = [
+                        [int(i) + shift, int(j) + shift, int(k) + shift, int(l) + shift]
+                        for i, j, k, l in Tquad
+                    ]
+                    connectivity += con_quad
 
         vertices = [(vertex[0], vertex[1]) for vertex in vertices]
 
