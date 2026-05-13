@@ -119,7 +119,7 @@ Increases the number of mesh nodes distributed to the suction side of the airfoi
   </tr>
 </table>
 
-It is observed that the horizontal mesh length of one element in the buffet region is reduced from 0.0092 to 0.0085. Further refinement can be achieved by allocating fewer points in the trailing-edge region using the `weight_te` parameter, so that more points are distributed in the buffet zone.
+Note: Further refinement can be achieved by allocating fewer points in the trailing-edge region using the `weight_te` parameter, so that more points are distributed in the buffet zone.
 
 ### 3. `weight_curvature`
 
@@ -138,7 +138,7 @@ Increases the distribution of points where the curvature is high, i.e., near the
   </tr>
 </table>
 
-Note: When multiple weighting functions are applied simultaneously, their sensitivities can differ significantly. In some cases, one weighting parameter must be varied by orders of magnitude before its effect becomes noticeable. This behavior was observed when adjusting `weight_upper` and `weight_curvature` at the same time. In particular, a value of `weight_curvature = 100` was required before additional points appeared near the leading edge when increasing `weight_upper`.
+Note: When multiple weighting functions are applied simultaneously, their sensitivities can differ significantly.
 
 ### 4. `weight_te`
 
