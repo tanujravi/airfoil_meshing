@@ -926,15 +926,20 @@ class Assemble:
 
             
             boundaries_upper = [p for p in te_upper_line if p[1] <= y_upper]
-
-            te_line_remaining_upper = [p for p in te_upper_line if p[1] > y_upper]
-            te_line_remaining_upper.insert(0, boundaries_upper[-1])
-
             te_lower_line = mesh.getLine(number=0, direction="v").copy()
             boundaries_lower = te_lower_line[: len(boundaries_upper)]
 
-            te_line_remaining_lower = te_lower_line[len(boundaries_upper) :]
-            te_line_remaining_lower.insert(0, boundaries_lower[-1])
+            if fraction_te_struct == 1.0:
+                te_line_remaining_upper = []
+                te_line_remaining_lower = [boundaries_lower[-1]]
+            else:
+
+                te_line_remaining_upper = [p for p in te_upper_line if p[1] > y_upper]
+                te_line_remaining_upper.insert(0, boundaries_upper[-1])
+
+                te_line_remaining_lower = te_lower_line[len(boundaries_upper) :]
+                te_line_remaining_lower.insert(0, boundaries_lower[-1])
+            
             boundaries_left = LineDistribution.arc_like_spline_from_2pts_2tangents(
                 p2,
                 line_airfoil_bound[1],
@@ -1022,11 +1027,9 @@ class Assemble:
         airfoil_line = te_line_remaining_lower.copy()
         airfoil_line.reverse()
         airfoil_line1 = te_line_remaining_upper.copy()
-        
         airfoil_line.extend(te_line[1:])
 
         airfoil_line.extend(airfoil_line1[1:])
-
 
         # Ensure left boundary goes bottom -> top
         if airfoil_line[0][1] > airfoil_line[-1][1]:
@@ -1057,6 +1060,53 @@ class Assemble:
         pR_top = (xR, yR_top)
         pL_bot = (xL_bot, yL_bot)
         pR_bot = (xR, yR_bot)
+
+        # Check that the lower wake boundary does not intersect the TE circular arc.
+        if curve_bool:
+            x0, y0 = pL_bot
+            cx_c, cy_c = centre_arc_te_skeleton
+            R_c = float(R_arc_te_skeleton)
+            A = cx_c - x0
+            B = cy_c - y0
+            AB = np.sqrt(A**2 + B**2)
+
+            dist_to_line = abs(A * np.sin(ang) + B * np.cos(ang))
+            proj_on_ray  = A * np.cos(ang) - B * np.sin(ang)
+
+            if dist_to_line < R_c - 1e-10 and proj_on_ray > 0.0:
+                if AB < R_c - 1e-10:
+                    raise ValueError(
+                        "pL_bot lies inside the trailing-edge circular arc region. "
+                        "Check 'fraction_structured'."
+                    )
+                # Solve |A*sin(θ) + B*cos(θ)| = R_c analytically.
+                # Equivalently: sqrt(A²+B²)*|sin(θ + φ)| = R_c, φ = arctan2(B, A)
+                phi   = np.arctan2(B, A)
+                alpha = np.arcsin(np.clip(R_c / AB, 0.0, 1.0))
+                candidates = [
+                    alpha - phi,
+                    np.pi - alpha - phi,
+                    -alpha - phi,
+                    np.pi + alpha - phi,
+                ]
+                # Keep candidates that are positive and whose intersection lies ahead
+                valid = [
+                    c for c in candidates
+                    if c > 1e-6
+                    and A * np.cos(c) - B * np.sin(c) > 0.0
+                ]
+                if valid:
+                    ang_min_deg = np.rad2deg(min(valid))
+                else:
+                    ang_min_deg = np.rad2deg(min(abs(c) for c in candidates))
+
+                raise ValueError(
+                    f"The wake trapezium lower boundary intersects the trailing-edge "
+                    f"circular arc (TE arc radius ≈ {R_c:.4f}). "
+                    f"Increase 'angle' in 'wake_tunnel' to at least "
+                    f"{ang_min_deg:.1f} degrees "
+                    f"(current value: {angle_deg:.1f} degrees)."
+                )
 
         # top side: min size on left -> max size on right
         upper_line = LineDistribution.graded_straight_segment(
@@ -1093,7 +1143,6 @@ class Assemble:
             airfoil_bd,
             key=lambda p: (p[0], -p[1])
         )
-        print(x_airfoil_rb, y_airfoil_rb)
         bottom_right_farfield = (
             x_airfoil_rb + L_farfield,
             y_airfoil_rb - R_farfield,
