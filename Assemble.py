@@ -1,5 +1,6 @@
 from airfoil import Airfoil
 from BlockMesh import BlockMesh
+import logging
 import numpy as np
 from LineDistribution import LineDistribution
 import gmsh
@@ -13,8 +14,10 @@ class Assemble:
     - a near-airfoil boundary-layer block by extruding the airfoil contour along
       surface normals with geometric growth,
     - an upper-side shock-box block extruded from a selected outer-layer segment,
-    - a wake “tunnel” (trapezium-shaped) downstream of the trailing edge (optionally 
-      with a curved TE-cap block),
+    - a structured near-wake region downstream of the trailing edge, either a circular
+      TE-cap block or a rectangle of three blocks that widens the trailing-edge line,
+      combined independently with a straight or spline-like trailing-edge closure,
+    - a wake “tunnel” (trapezium-shaped) further downstream,
     - an unstructured farfield mesh.
 
     """
@@ -898,7 +901,31 @@ class Assemble:
         shock_upper = shock_box.getLine(number=-1, direction="u")
 
         ex_tunnel = self.config.get("wake_tunnel", {})
-        curve_bool = ex_tunnel.get("make_curve", True)
+        ex_te = ex_tunnel.get("trailing_edge", {})
+        ex_near_wake = ex_tunnel.get("near_wake", {})
+
+        blunt_te = ex_te.get("blunt", True)
+        wake_type = ex_near_wake.get("type", "rectangular")
+
+        if wake_type not in ("circular", "rectangular"):
+            raise ValueError(
+                f"Invalid 'type' '{wake_type}' in 'wake_tunnel.near_wake'. "
+                "Expected 'circular' or 'rectangular'."
+            )
+
+        if blunt_te and wake_type == "circular":
+            # At a blunt trailing edge the extrusion normals are nearly parallel
+            # to the trailing-edge face, so a straight closure meets the
+            # boundary-layer line at an almost straight (~174 degree) corner and
+            # the transfinite interpolation folds a few cells there.
+            logging.warning(
+                "'wake_tunnel.trailing_edge.blunt' = True combined with "
+                "'wake_tunnel.near_wake.type' = 'circular' produces a few "
+                "inverted cells in the trailing-edge cap block, at the corner "
+                "where the straight trailing-edge closure meets the "
+                "boundary-layer line. Use 'blunt: False' (spline closure) or "
+                "'type: \"rectangular\"' to avoid them."
+            )
 
         line_airfoil_bound = mesh.getLine(number=0, direction="u")
         p0 = np.array(line_airfoil_bound[0])
@@ -909,17 +936,45 @@ class Assemble:
         p_te_up = p2
         p_te_down = p0
 
+        p_te_up_arr = np.array(p_te_up, dtype=float)
+        p_te_down_arr = np.array(p_te_down, dtype=float)
+
         len_te = np.linalg.norm(np.array(p_te_up) - np.array(p_te_down))
 
         # --------------------------
-        # Wake tunnel / TE-cap
+        # Trailing-edge closure line
         # --------------------------
 
-        if curve_bool:
+        # Line closing the blunt trailing-edge gap, ordered from the upper to the
+        # lower trailing-edge point. It is built independently of the near-wake
+        # type, so that both closures can be combined with both wake types.
+        if blunt_te:
+            te_closure_line = [
+                tuple(p_te_up_arr + ti * (p_te_down_arr - p_te_up_arr))
+                for ti in np.linspace(0.0, 1.0, n_po + 1)
+            ]
+        else:
+            te_closure_line = LineDistribution.arc_like_spline_from_2pts_2tangents(
+                p2,
+                line_airfoil_bound[1],
+                line_airfoil_bound[0],
+                p0,
+                line_airfoil_bound[-1],
+                line_airfoil_bound[-2],
+                n_points=n_po + 1,
+                handle_scale=1.4,
+            )
+
+        # --------------------------
+        # Near wake / TE-cap
+        # --------------------------
+
+        if wake_type == "circular":
 
             te_circular_outer = BlockMesh()
 
-            fraction_te_struct = ex_tunnel.get("fraction_structured", 0.5)    
+            ex_circular = ex_near_wake.get("circular", {})
+            fraction_te_struct = ex_circular.get("fraction_structured", 0.5)
             te_upper_line = mesh.getLine(number=-1, direction="v").copy()
             len_upper_te = np.linalg.norm(np.array(te_upper_line[0])-np.array(te_upper_line[-1]))            
             y_upper = p_te_up[1] + fraction_te_struct * len_upper_te
@@ -940,16 +995,7 @@ class Assemble:
                 te_line_remaining_lower = te_lower_line[len(boundaries_upper) :]
                 te_line_remaining_lower.insert(0, boundaries_lower[-1])
             
-            boundaries_left = LineDistribution.arc_like_spline_from_2pts_2tangents(
-                p2,
-                line_airfoil_bound[1],
-                line_airfoil_bound[0],
-                p0,
-                line_airfoil_bound[-1],
-                line_airfoil_bound[-2],
-                n_points=n_po + 1,
-                handle_scale=1.4,
-            )
+            boundaries_left = list(te_closure_line)
 
             pc1 = np.array(boundaries_upper[-1], float)
             pc2 = np.array(boundaries_lower[-1], float)
@@ -993,18 +1039,164 @@ class Assemble:
             te_circular_outer.transfinite(boundary=boundary)
             self.blocks.append(te_circular_outer)
             te_line = te_circular_outer.getLine(number=-1, direction="v").copy()
+
+            wake_left_line = None
+            rect_upper_line = None
+            rect_lower_line = None
         else:
-            p_te_up_arr = np.array(p_te_up, dtype=float)
-            p_te_down_arr = np.array(p_te_down, dtype=float)
-
-            t = np.linspace(0.0, 1.0, n_po)
-
             # down point first
-            te_line = [
-                tuple(p_te_down_arr + ti * (p_te_up_arr - p_te_down_arr)) for ti in t
-            ]
+            te_line = list(te_closure_line)
+            te_line.reverse()
+
             te_line_remaining_lower = mesh.getLine(number=0, direction="v").copy()
             te_line_remaining_upper = mesh.getLine(number=-1, direction="v").copy()
+
+            # ------------------------------------------------------------------
+            # Structured wake rectangle, split into three transfinite blocks by a
+            # central funnel that widens the (thin) TE line into a tall segment:
+            #
+            #   corner_upper_left o---------------------o  rect upper line
+            #                     |      block 1        |
+            #             p_te_up o-------__            |
+            #                     | block 2 --____      o  x = x_rect_right
+            #           p_te_down o-------______  --o
+            #                     |      block 3   __--o
+            #   corner_lower_left o---------------------o  rect lower line
+            # ------------------------------------------------------------------
+
+            ex_rectangular = ex_near_wake.get("rectangular", {})
+            rect_length = ex_rectangular.get("length", 0.3) * chord_length
+            funnel_angle = ex_rectangular.get("funnel_angle", 20.0)
+
+            corner_upper_left = np.array(te_line_remaining_upper[-1], dtype=float)
+            corner_lower_left = np.array(te_line_remaining_lower[-1], dtype=float)
+
+            x_te = x_chord_left + chord_length
+            x_rect_right = x_te + rect_length
+
+            x_corner_max = max(corner_upper_left[0], corner_lower_left[0])
+            if x_rect_right <= x_corner_max:
+                raise ValueError(
+                    "'length' in 'wake_tunnel.near_wake.rectangular' is too "
+                    "small: the wake "
+                    "rectangle would end at x = "
+                    f"{x_rect_right:.4f}, which is upstream of the outer "
+                    f"boundary-layer corner at x = {x_corner_max:.4f}. Increase "
+                    "'length' to at least "
+                    f"{(x_corner_max - x_te) / chord_length:.4f}."
+                )
+
+            tan_funnel = np.tan(np.deg2rad(funnel_angle))
+            y_funnel_up = p_te_up_arr[1] + (x_rect_right - p_te_up_arr[0]) * tan_funnel
+            y_funnel_down = (
+                p_te_down_arr[1] - (x_rect_right - p_te_down_arr[0]) * tan_funnel
+            )
+
+            if (
+                y_funnel_up >= corner_upper_left[1]
+                or y_funnel_down <= corner_lower_left[1]
+            ):
+                raise ValueError(
+                    "'funnel_angle' in 'wake_tunnel.near_wake.rectangular' is "
+                    "too large: the funnel "
+                    f"reaches y = [{y_funnel_down:.4f}, {y_funnel_up:.4f}] at the "
+                    "end of the wake rectangle, which does not fit inside the "
+                    f"boundary layer y = [{corner_lower_left[1]:.4f}, "
+                    f"{corner_upper_left[1]:.4f}]. Reduce 'funnel_angle' or "
+                    "'length'."
+                )
+
+            # Streamwise distribution: geometric, starting from the streamwise
+            # cell size at the TE on the outer boundary-layer line. It is defined
+            # on the rectangle upper line and reused (proportionally) on all four
+            # streamwise lines so that the blocks stay conforming.
+            first_cell = np.linalg.norm(
+                np.array(mesh_outer[0], dtype=float)
+                - np.array(mesh_outer[1], dtype=float)
+            )
+            rect_growth = ex_rectangular.get("growth", 1.05)
+
+            fractions = LineDistribution.geometric_fractions(
+                length=x_rect_right - corner_upper_left[0],
+                first_cell=first_cell,
+                growth=rect_growth,
+            )
+
+            rect_upper_line = LineDistribution.segment_from_fractions(
+                corner_upper_left,
+                (x_rect_right, corner_upper_left[1]),
+                fractions,
+            )
+            rect_lower_line = LineDistribution.segment_from_fractions(
+                corner_lower_left,
+                (x_rect_right, corner_lower_left[1]),
+                fractions,
+            )
+            funnel_upper_line = LineDistribution.segment_from_fractions(
+                p_te_up_arr,
+                (x_rect_right, y_funnel_up),
+                fractions,
+            )
+            funnel_lower_line = LineDistribution.segment_from_fractions(
+                p_te_down_arr,
+                (x_rect_right, y_funnel_down),
+                fractions,
+            )
+
+            # Right side of the rectangle: one vertical line, split into three
+            # pieces that carry the point counts of the blocks on their left.
+            right_upper = LineDistribution.uniform_segment(
+                (x_rect_right, y_funnel_up),
+                (x_rect_right, corner_upper_left[1]),
+                len(te_line_remaining_upper),
+            )
+            right_centre = LineDistribution.uniform_segment(
+                (x_rect_right, y_funnel_down),
+                (x_rect_right, y_funnel_up),
+                len(te_line),
+            )
+            right_lower = LineDistribution.uniform_segment(
+                (x_rect_right, corner_lower_left[1]),
+                (x_rect_right, y_funnel_down),
+                len(te_line_remaining_lower),
+            )
+
+            wake_rect_upper = BlockMesh()
+            wake_rect_upper.transfinite(
+                boundary=[
+                    funnel_upper_line,
+                    rect_upper_line,
+                    te_line_remaining_upper,
+                    right_upper,
+                ]
+            )
+            self.blocks.append(wake_rect_upper)
+
+            wake_rect_centre = BlockMesh()
+            wake_rect_centre.transfinite(
+                boundary=[
+                    funnel_lower_line,
+                    funnel_upper_line,
+                    te_line,
+                    right_centre,
+                ]
+            )
+            self.blocks.append(wake_rect_centre)
+
+            wake_rect_lower = BlockMesh()
+            wake_rect_lower.transfinite(
+                boundary=[
+                    rect_lower_line,
+                    funnel_lower_line,
+                    te_line_remaining_lower[::-1],
+                    right_lower,
+                ]
+            )
+            self.blocks.append(wake_rect_lower)
+
+            # The right side of the rectangle (bottom to top) replaces the TE
+            # line as the left boundary of the unstructured wake.
+            wake_left_line = right_lower + right_centre[1:] + right_upper[1:]
 
         # --------------------------
         # Unstructured mesh using Gmsh
@@ -1024,12 +1216,15 @@ class Assemble:
         lc_outer = ex_farfield.get("max_size", 3.2)
         d1 = ex_farfield.get("grading", 0.3)
 
-        airfoil_line = te_line_remaining_lower.copy()
-        airfoil_line.reverse()
-        airfoil_line1 = te_line_remaining_upper.copy()
-        airfoil_line.extend(te_line[1:])
+        if wake_left_line is not None:
+            airfoil_line = list(wake_left_line)
+        else:
+            airfoil_line = te_line_remaining_lower.copy()
+            airfoil_line.reverse()
+            airfoil_line1 = te_line_remaining_upper.copy()
+            airfoil_line.extend(te_line[1:])
 
-        airfoil_line.extend(airfoil_line1[1:])
+            airfoil_line.extend(airfoil_line1[1:])
 
         # Ensure left boundary goes bottom -> top
         if airfoil_line[0][1] > airfoil_line[-1][1]:
@@ -1062,7 +1257,7 @@ class Assemble:
         pR_bot = (xR, yR_bot)
 
         # Check that the lower wake boundary does not intersect the TE circular arc.
-        if curve_bool:
+        if wake_type == "circular":
             x0, y0 = pL_bot
             cx_c, cy_c = centre_arc_te_skeleton
             R_c = float(R_arc_te_skeleton)
@@ -1133,9 +1328,16 @@ class Assemble:
         
         inner_airfoil_line.extend(shock_right[1:])
         inner_airfoil_line.extend(boundaries_right_upper)
+        # With the structured wake rectangle, its upper and lower lines are part
+        # of the hole boundary seen by the farfield mesh: the unstructured wake
+        # now starts at the right side of the rectangle, not at the trailing edge.
+        if rect_upper_line is not None:
+            inner_airfoil_line.extend(rect_upper_line[1:])
         inner_airfoil_line.extend(upper_line)
         inner_airfoil_line.extend(right_line[::-1])
         inner_airfoil_line.extend(lower_line[::-1])
+        if rect_lower_line is not None:
+            inner_airfoil_line.extend(rect_lower_line[::-1][:-1])
         ex_fardim = self.config.get("farfield", {})
         L_farfield = ex_fardim.get("length", 100)
         R_farfield = ex_fardim.get("radius", 50)

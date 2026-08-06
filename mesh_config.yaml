@@ -30,11 +30,27 @@ shock_box:
 
 
 wake_tunnel:
-  n_points: 70
-  make_curve: True
-  fraction_structured: 0.7     # Used only if make_curve == True.
+  n_points: 70                 # Points across the trailing-edge closure line (n_points + 1 are generated).
   length: 5.0                  # Normalized by chord length; downstream wake length from TE/wake start. Must be > 0.
   angle: 5.0                   # Wake opening angle in degrees.
+
+  trailing_edge:
+    blunt: True                # True:  the trailing-edge gap is closed by a straight vertical line.
+                               # False: the trailing-edge gap is closed by a spline-like rounded cap.
+
+  near_wake:                   # Structured block(s) between the trailing edge and the wake tunnel.
+    type: "rectangular"        # Use "circular" or "rectangular".
+
+    circular:
+      fraction_structured: 1.0 # Fraction of the boundary layer height covered by the TE cap block.
+
+    rectangular:
+      length: 0.3              # Normalized by chord length; length of the wake rectangle, measured from
+                               # the TE. Must reach past the outer boundary-layer corners.
+      funnel_angle: 10.0       # Half-angle in degrees of the central block that widens the TE line.
+                               # Must stay inside the boundary layer height.
+      growth: 1.03             # Dimensionless streamwise growth ratio of the wake rectangle. Should be
+                               # >= 1. The first cell always matches the streamwise cell size at the TE.
 
 
 tria_mesh_settings:

@@ -748,3 +748,104 @@ class LineDistribution:
             pts.append((float(p_end[0]), float(p_end[1])))
 
         return pts
+
+    @staticmethod
+    def geometric_fractions(length, first_cell, growth):
+        """Normalized node positions of a geometric (GP) cell distribution.
+
+        The cell sizes form a geometric series with the given ratio, starting
+        from ``first_cell``. The number of cells is the one whose series comes
+        closest to ``length``; the cells are then scaled uniformly so that the
+        series closes exactly, which leaves the first cell within half a cell of
+        ``first_cell``.
+
+        The returned fractions are dimensionless and can be mapped onto any
+        straight segment, which keeps the streamwise distribution consistent
+        across segments of different lengths.
+
+        :param length: total length spanned by the distribution.
+        :type length: float
+        :param first_cell: target size of the first cell.
+        :type first_cell: float
+        :param growth: ratio between consecutive cells. Should be >= 1.
+        :type growth: float
+        :return: increasing fractions from ``0.0`` to ``1.0`` (``n + 1`` values).
+        :rtype: list[float]
+        """
+        L = float(length)
+        a = float(first_cell)
+        r = float(growth)
+
+        if L <= 0.0:
+            raise ValueError("'length' must be > 0.")
+        if a <= 0.0:
+            raise ValueError("'first_cell' must be > 0.")
+        if r < 1.0:
+            raise ValueError("'growth' must be >= 1.")
+        if a >= L:
+            raise ValueError("'first_cell' must be smaller than 'length'.")
+
+        if abs(r - 1.0) < 1e-12:
+            n = max(1, int(round(L / a)))
+            return [i / n for i in range(n + 1)]
+
+        # Number of cells of the series a, a*r, a*r**2, ... summing to 'length'.
+        n = max(1, int(round(np.log1p(L * (r - 1.0) / a) / np.log(r))))
+
+        if n == 1:
+            return [0.0, 1.0]
+
+        sizes = [a * r**i for i in range(n)]
+        total = sum(sizes)
+
+        fractions = [0.0]
+        acc = 0.0
+        for h in sizes:
+            acc += h
+            fractions.append(acc / total)
+        fractions[-1] = 1.0
+
+        return fractions
+
+    @staticmethod
+    def segment_from_fractions(p_start, p_end, fractions):
+        """Place points on a straight segment at the given normalized positions.
+
+        :param p_start: start point ``(x, y)``.
+        :type p_start: tuple[float, float]
+        :param p_end: end point ``(x, y)``.
+        :type p_end: tuple[float, float]
+        :param fractions: increasing values from ``0.0`` to ``1.0``.
+        :type fractions: list[float]
+        :return: points along the segment.
+        :rtype: list[tuple[float, float]]
+        """
+        p_start = np.asarray(p_start, dtype=float)
+        p_end = np.asarray(p_end, dtype=float)
+        d = p_end - p_start
+
+        return [
+            (float(p_start[0] + t * d[0]), float(p_start[1] + t * d[1]))
+            for t in fractions
+        ]
+
+    @staticmethod
+    def uniform_segment(p_start, p_end, n_points):
+        """Place ``n_points`` equally spaced points on a straight segment.
+
+        :param p_start: start point ``(x, y)``.
+        :type p_start: tuple[float, float]
+        :param p_end: end point ``(x, y)``.
+        :type p_end: tuple[float, float]
+        :param n_points: number of points, including both end points.
+        :type n_points: int
+        :return: points along the segment.
+        :rtype: list[tuple[float, float]]
+        """
+        n_points = int(n_points)
+        if n_points < 2:
+            raise ValueError("'n_points' must be >= 2.")
+
+        return LineDistribution.segment_from_fractions(
+            p_start, p_end, np.linspace(0.0, 1.0, n_points)
+        )
